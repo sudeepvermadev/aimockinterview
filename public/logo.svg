@@ -1,0 +1,59 @@
+<svg width="900" height="320" viewBox="0 0 900 320" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <!-- Main gradient -->
+    <linearGradient id="gradMain" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#00E5FF"></stop>
+      <stop offset="40%" stop-color="#3A7BFF"></stop>
+      <stop offset="75%" stop-color="#6A00FF"></stop>
+      <stop offset="100%" stop-color="#B300FF"></stop>
+    </linearGradient>
+
+    <!-- Subtle highlight gradient -->
+    <linearGradient id="gradHighlight" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" stop-color="#FFFFFF" stop-opacity="0.8"></stop>
+      <stop offset="100%" stop-color="#FFFFFF" stop-opacity="0"></stop>
+    </linearGradient>
+
+    <!-- Glow -->
+    <filter id="glow" x="-50%" y="-50%" width="200%" height="200%">
+      <feGaussianBlur stdDeviation="6" result="blur"></feGaussianBlur>
+      <feMerge>
+        <feMergeNode in="blur"></feMergeNode>
+        <feMergeNode in="SourceGraphic"></feMergeNode>
+      </feMerge>
+    </filter>
+  </defs>
+
+  <!-- Background -->
+  <rect width="100%" height="100%" fill="#050505"></rect>
+
+  <!-- Text -->
+  <text x="120" y="175" font-family="Poppins, Arial, sans-serif" font-size="95" font-weight="700" fill="#EAEAEA" letter-spacing="1">
+    Prep
+  </text>
+
+  <text x="350" y="175" font-family="Poppins, Arial, sans-serif" font-size="95" font-weight="700" fill="url(#gradMain)" letter-spacing="1">
+    Edge
+  </text>
+
+  <!-- Smooth swoosh -->
+  <path d="M150 220 
+           C 320 300, 580 260, 760 120" stroke="url(#gradMain)" stroke-width="16" fill="none" stroke-linecap="round" filter="url(#glow)"></path>
+
+  <!-- Highlight line -->
+  <path d="M160 220 
+           C 330 285, 570 250, 740 130" stroke="url(#gradHighlight)" stroke-width="5" fill="none" opacity="0.6"></path>
+
+  <!-- Elegant arrow head -->
+  <path d="M760 120 
+           L710 110 
+           L735 85 
+           L800 115 
+           Z" fill="url(#gradMain)" filter="url(#glow)"></path>
+
+  <!-- Small sparkle dots -->
+  <circle cx="520" cy="240" r="2" fill="#8FD3FF"></circle>
+  <circle cx="560" cy="230" r="2" fill="#C08BFF"></circle>
+  <circle cx="600" cy="210" r="2" fill="#6CF0FF"></circle>
+  <circle cx="650" cy="180" r="2" fill="#A0A0FF"></circle>
+</svg>
