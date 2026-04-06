@@ -1,335 +1,3 @@
-// // import dayjs from "dayjs";
-// // import Link from "next/link";
-// // import Image from "next/image";
-
-// // import { Button } from "./ui/button";
-// // // import DisplayTechIcons from "./DisplayTechIcons";
-
-// // import { cn, getRandomInterviewCover } from "@/lib/utils";
-// // // import { getFeedbackByInterviewId } from "@/lib/actions/general.action";
-
-// // const InterviewCard = async ({
-// //   interviewId,
-// //   userId,
-// //   role,
-// //   type,
-// //   techstack,
-// //   createdAt,
-// // }: InterviewCardProps) => {
-// //   const feedback =
-// //     userId && interviewId
-// //       ? await getFeedbackByInterviewId({
-// //           interviewId,
-// //           userId,
-// //         })
-// //       : null;
-
-// //   const normalizedType = /mix/gi.test(type) ? "Mixed" : type;
-
-// //   const badgeColor =
-// //     {
-// //       Behavioral: "bg-light-400",
-// //       Mixed: "bg-light-600",
-// //       Technical: "bg-light-800",
-// //     }[normalizedType] || "bg-light-600";
-
-// //   const formattedDate = dayjs(
-// //     feedback?.createdAt || createdAt || Date.now()
-// //   ).format("MMM D, YYYY");
-
-// //   return (
-// //     <div className="card-border w-[360px] max-sm:w-full min-h-96">
-// //       <div className="card-interview">
-// //         <div>
-// //           {/* Type Badge */}
-// //           <div
-// //             className={cn(
-// //               "absolute top-0 right-0 w-fit px-4 py-2 rounded-bl-lg",
-// //               badgeColor
-// //             )}
-// //           >
-// //             <p className="badge-text ">{normalizedType}</p>
-// //           </div>
-
-// //           {/* Cover Image */}
-// //           <Image
-// //             src={getRandomInterviewCover()}
-// //             alt="cover-image"
-// //             width={90}
-// //             height={90}
-// //             className="rounded-full object-fit size-[90px]"
-// //           />
-
-// //           {/* Interview Role */}
-// //           <h3 className="mt-5 capitalize">{role} Interview</h3>
-
-// //           {/* Date & Score */}
-// //           <div className="flex flex-row gap-5 mt-3">
-// //             <div className="flex flex-row gap-2">
-// //               <Image
-// //                 src="/calendar.svg"
-// //                 width={22}
-// //                 height={22}
-// //                 alt="calendar"
-// //               />
-// //               <p>{formattedDate}</p>
-// //             </div>
-
-// //             <div className="flex flex-row gap-2 items-center">
-// //               <Image src="/star.svg" width={22} height={22} alt="star" />
-// //               <p>{feedback?.totalScore || "---"}/100</p>
-// //             </div>
-// //           </div>
-
-// //           {/* Feedback or Placeholder Text */}
-// //           <p className="line-clamp-2 mt-5">
-// //             {feedback?.finalAssessment ||
-// //               "You haven't taken this interview yet. Take it now to improve your skills."}
-// //           </p>
-// //         </div>
-
-// //         <div className="flex flex-row justify-between">
-// //           <DisplayTechIcons techStack={techstack} />
-
-// //           <Button className="btn-primary">
-// //             <Link
-// //               href={
-// //                 feedback
-// //                   ? `/interview/${interviewId}/feedback`
-// //                   : `/interview/${interviewId}`
-// //               }
-// //             >
-// //               {feedback ? "Check Feedback" : "View Interview"}
-// //             </Link>
-// //           </Button>
-// //         </div>
-// //       </div>
-// //     </div>
-// //   );
-// // };
-
-// // export default InterviewCard;
-
-
-// import dayjs from "dayjs";
-// import Image from "next/image";
-// import { Button } from "./ui/button";
-// import { Interview, Feedback } from "@/constants";
-// import { getRandomInterviewCover } from "@/lib/utils";
-
-
-
-// export default function InterviewCard({
-//   interviewId,
-//   userId,
-//   role,
-//   type,
-//   techstack,
-//   createdAt,
-
-// }: InterviewCardProps) {
-//   const feedback: Feedback | null = null; // Replace with actual data fetching logic
-//   const normalizedType = /mix/gi.test(type) ? "Mixed" : type;
-//   const formattedDate = dayjs(
-//     feedback?.createdAt || createdAt || Date.now()
-//   ).format("MMM D, YYYY");
-
-//   return (
-//     <div className="card-border w-[360px] max-sm:w-full min-h-96 bg-[#1a1a28] border border-gray-800 p-6 rounded-2xl shadow-lg mb-4">
-//      <div className="card-interview">
-//       <div>
-//         <div className="absolute top-0 right-0 w-fit px4 py-2 rounded-lg bg-light-600">
-//           <p className="badge-text">{normalizedType}</p>
-          
-//         </div>
-//         <Image  src= {getRandomInterviewCover()}  alt="cover-image" width={90} height={90} className="rounded-full object-cover size-[90px]" />
-//       </div>
-
-// <h3> {role} Interview</h3>
-// <div className="flex flex-row gap-5 mt-3 "> 
-// <Image src="/calendar.svg" width={22} height={22} alt="calendar" />
-// <p>{formattedDate}</p>
-// </div>
-// <div>
-// <Image src="/star.svg" width={22} height={22} alt="star" />
-// <p>{feedback?.totalScore || "---"}/100</p>  
-// <div>
-// <p className="line-clamp-2 mt-5">
-// {feedback?.finalAssessment ||
-// "You haven't taken this interview yet. Take it now to improve your skills."}
-// </p>
-// </div>
-// <div className="flex flex-row justify-between">
-//   <P> Tech Icons</P>
-//   <Button className="btn-primary">
-//     <a href={feedback ? `/interview/${interviewId}/feedback` : `/interview/${interviewId}`}>
-//       {feedback ? "Check Feedback" : "View Interview"}
-//     </a>
-//   </Button> 
-
-// <div className="flex flex-row justify-between">
-//   <DisposableStack techStack{techstack} />
-
-// </div>
-// </div>
-// </div>
-//      </div>
-//     </div>
-//   );
-// }
-
-
-
-
-
-// // "use client";
-
-// // import dayjs from "dayjs";
-// // import Image from "next/image";
-// // import { Button } from "./ui/button";
-// // import { InterviewCardProps, Feedback } from "@/constants";
-// // import { getRandomInterviewCover } from "@/lib/utils";
-
-// // export default function InterviewCard({
-// //   interviewId,
-// //   userId,
-// //   role,
-// //   type,
-// //   techstack,
-// //   createdAt,
-// // }: InterviewCardProps) {
-// //   const feedback: Feedback | null = null; // TODO: fetch real feedback if needed
-// //   const normalizedType = /mix/gi.test(type) ? "Mixed" : type;
-// //   const formattedDate = dayjs(feedback?.createdAt || createdAt).format("MMM D, YYYY");
-
-// //   return (
-// //     <div className="bg-[#1a1a28] border border-gray-800 p-6 rounded-2xl shadow-lg">
-// //       {/* Cover + Badge */}
-// //       <div className="relative flex items-center gap-4 mb-4">
-// //         <Image
-// //           src={getRandomInterviewCover()}
-// //           width={90}
-// //           height={90}
-// //           alt="cover"
-// //           className="rounded-full object-cover"
-// //         />
-// //         <span className="absolute top-0 right-0 bg-blue-600 px-3 py-1 rounded-lg text-sm">
-// //           {normalizedType}
-// //         </span>
-// //       </div>
-
-// //       <h3 className="text-xl font-semibold mb-2">{role} Interview</h3>
-// //       <p className="text-gray-400 mb-1">Date: {formattedDate}</p>
-// //       <p className="text-gray-400 mb-2">
-// //         Score: {feedback?.totalScore ?? "---"}/100
-// //       </p>
-
-// //       <div className="flex gap-2 flex-wrap mb-3">
-// //         {techstack.map((tech) => (
-// //           <Image
-// //             key={tech}
-// //             src={`/tech/${tech.toLowerCase()}.svg`} // fallback to /public/tech icons
-// //             alt={tech}
-// //             width={24}
-// //             height={24}
-// //             className="rounded"
-// //           />
-// //         ))}
-// //       </div>
-
-// //       <Button className="w-full bg-blue-600 hover:bg-blue-700 rounded-xl">
-// //         <a href={feedback ? `/interview/${interviewId}/feedback` : `/interview/${interviewId}`}>
-// //           {feedback ? "Check Feedback" : "View Interview"}
-// //         </a>
-// //       </Button>
-// //     </div>
-// //   );
-// // }
-
-// "use client";
-
-// import Image from "next/image";
-// import { Button } from "./ui/button";
-// import { Interview, Feedback, interviewCovers } from "@/constants";
-// import { getRandomInterviewCover, getTechLogos, cn } from "@/lib/utils";
-
-// interface InterviewCardProps extends Interview {
-//   feedback?: Feedback | null;
-// }
-
-// export default function InterviewCard({
-//   id,
-//   role,
-//   type,
-//   techstack,
-//   createdAt,
-//   feedback = null,
-// }: InterviewCardProps) {
-//   const normalizedType = /mix/gi.test(type) ? "Mixed" : type;
-//   const formattedDate = new Date(createdAt).toLocaleDateString("en-US", {
-//     month: "short",
-//     day: "numeric",
-//     year: "numeric",
-//   });
-
-//   return (
-//     <div className="bg-[#1a1a28] border border-gray-800 p-6 rounded-2xl shadow-lg w-full max-w-sm mb-6 relative">
-//       {/* Badge */}
-//       <div className="absolute top-4 right-4 bg-blue-600 px-3 py-1 rounded-lg text-sm font-medium">
-//         {normalizedType}
-//       </div>
-
-//       {/* Cover Image */}
-//       <div className="flex justify-center mb-4">
-//         <Image
-//           src={getRandomInterviewCover() || "/covers/default.png"}
-//           alt="cover"
-//           width={90}
-//           height={90}
-//           className="rounded-full object-cover"
-//         />
-//       </div>
-
-//       {/* Role & Date */}
-//       <h3 className="text-xl font-semibold mb-1">{role} Interview</h3>
-//       <p className="text-gray-400 mb-1">Date: {formattedDate}</p>
-//       <p className="text-gray-400 mb-3">
-//         Score: {feedback?.totalScore ?? "---"}/100
-//       </p>
-
-//       {/* Tech Icons */}
-//       <div className="flex flex-wrap gap-2 mb-4">
-//         {techstack.map((tech) => {
-//           const normalized = tech.toLowerCase().replace(/\s+/g, "");
-//           const iconUrl = `/tech/${normalized}.svg`; // fallback to public/tech
-//           return (
-//             <Image
-//               key={tech}
-//               src={iconUrl}
-//               alt={tech}
-//               width={28}
-//               height={28}
-//               className="rounded"
-//             />
-//           );
-//         })}
-//       </div>
-
-//       {/* Feedback / Placeholder */}
-//       <p className="text-gray-300 line-clamp-2 mb-4">
-//         {feedback?.finalAssessment ||
-//           "You haven't taken this interview yet. Take it now to improve your skills."}
-//       </p>
-
-//       {/* Action Button */}
-//       <Button className="w-full bg-blue-600 hover:bg-blue-700 rounded-xl">
-//         <a href={feedback ? `/interview/${id}/feedback` : `/interview/${id}`}>
-//           {feedback ? "Check Feedback" : "View Interview"}
-//         </a>
-//       </Button>
-//     </div>
-//   );
-// }
 "use client";
 
 import Image from "next/image";
@@ -339,9 +7,26 @@ import { Interview, Feedback } from "@/constants";
 import { getRandomInterviewCover, getTechLogos, cn } from "@/lib/utils";
 import DisplayTechIcons from "./DisplayTechIcons";
 import { useState, useEffect } from "react";
+import { CheckCircle2, Star, Trash2, RotateCcw, MessageSquare, ArrowRight } from "lucide-react";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
+import { deleteInterview } from "@/lib/actions/general.action";
+import { toast } from "sonner";
+import { useRouter } from "next/navigation";
 
 interface InterviewCardProps extends Interview {
   feedback?: Feedback | null;
+  customHref?: string;
+  coverImage?: string;
 }
 
 export default function InterviewCard({
@@ -350,84 +35,235 @@ export default function InterviewCard({
   type,
   techstack,
   createdAt,
+  finalized,
   feedback = null,
+  customHref,
+  coverImage,
+  userId,
 }: InterviewCardProps) {
   const normalizedType = /mix/gi.test(type) ? "Mixed" : type;
-  const formattedDate = new Date(createdAt).toLocaleDateString("en-US", {
-    month: "short",
-    day: "numeric",
-    year: "numeric",
-  });
+
+  const formattedDate = createdAt
+    ? new Date(createdAt).toLocaleDateString("en-US", {
+      month: "short",
+      day: "numeric",
+      year: "numeric",
+    })
+    : "Recent";
 
   const [coverSrc, setCoverSrc] = useState<string>("/covers/adobe.png");
   const [techIcons, setTechIcons] = useState<{ tech: string; url: string }[]>([]);
 
   useEffect(() => {
-    setCoverSrc(getRandomInterviewCover() || "/covers/adobe.png");
-    
-    // Load tech logos synchronously if possible, or via utility
+    setCoverSrc(coverImage || getRandomInterviewCover() || "/covers/adobe.png");
+
     const loadLogos = async () => {
-      const logos = await getTechLogos(techstack);
-      setTechIcons(logos);
+      if (techstack && techstack.length > 0) {
+        const logos = await getTechLogos(techstack);
+        setTechIcons(logos);
+      }
     };
     loadLogos();
-  }, [techstack]);
+  }, [techstack, coverImage]);
+
+  const [deleting, setDeleting] = useState(false);
+  const router = useRouter();
+
+  const handleDelete = async () => {
+    setDeleting(true);
+    try {
+      const res = await deleteInterview(id, userId);
+      if (res.success) {
+        toast.success("Interview deleted successfully.");
+        router.refresh();
+      } else {
+        toast.error("Failed to delete interview.");
+      }
+    } catch (err) {
+      toast.error("An error occurred while deleting.");
+    } finally {
+      setDeleting(false);
+    }
+  };
+
+  const isCompleted = finalized || !!feedback;
+  const linkPath =
+    customHref || (isCompleted ? `/interview/${id}/feedback` : `/interview/${id}`);
 
   return (
-    <div className="group relative bg-[#11111d] border border-gray-800/50 p-6 rounded-[28px] w-full max-w-sm transition-all duration-300 hover:border-blue-500/30 hover:shadow-[0_0_30px_rgba(59,130,246,0.1)]">
-      {/* Badge & Date */}
+    <div
+      className={cn(
+        "group relative bg-[var(--surface-card-alt)] border p-6 rounded-[28px] w-full transition-all duration-300",
+        isCompleted
+          ? "border-blue-500/20 hover:border-blue-500/40 shadow-[0_0_20px_rgba(59,130,246,0.05)]"
+          : "border-gray-800/50 hover:border-white/10"
+      )}
+    >
+      {/* Top Row: Date & Type Badge */}
       <div className="flex justify-between items-center mb-6">
-        <span className="text-[10px] font-bold text-gray-500 uppercase tracking-[0.2em]">
+        <span className="text-[10px] font-bold text-[var(--text-secondary)] uppercase tracking-[0.2em]">
           {formattedDate}
         </span>
-        <span className={cn(
-          "px-3 py-1 rounded-lg text-[10px] font-black uppercase tracking-tighter border",
-          normalizedType === "Technical" 
-            ? "bg-emerald-500/10 text-emerald-400 border-emerald-500/20" 
-            : "bg-blue-500/10 text-blue-400 border-blue-500/20"
-        )}>
-          {normalizedType}
-        </span>
+        <div className="flex gap-2">
+          {isCompleted && (
+            <span className="flex items-center gap-1 bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 px-2 py-0.5 rounded-md text-[9px] font-bold uppercase">
+              <CheckCircle2 className="w-2.5 h-2.5" /> Done
+            </span>
+          )}
+          <span
+            className={cn(
+              "px-3 py-1 rounded-lg text-[10px] font-black uppercase tracking-tighter border",
+              normalizedType === "Technical"
+                ? "bg-emerald-500/10 text-emerald-400 border-emerald-500/20"
+                : "bg-blue-500/10 text-blue-400 border-blue-500/20"
+            )}
+          >
+            {normalizedType}
+          </span>
+
+          <AlertDialog>
+            <AlertDialogTrigger asChild>
+              <button 
+                className="p-1 px-2.5 rounded-lg bg-white/5 border border-white/10 text-[var(--text-secondary)] hover:text-red-400 hover:bg-red-500/10 hover:border-red-500/20 transition-all active:scale-90"
+                title="Delete Interview"
+              >
+                <Trash2 className="w-3 h-3" />
+              </button>
+            </AlertDialogTrigger>
+            <AlertDialogContent className="bg-slate-950 border border-white/10 rounded-[3rem] p-10">
+              <AlertDialogHeader>
+                <AlertDialogTitle className="text-2xl font-black text-white">Delete Session?</AlertDialogTitle>
+                <AlertDialogDescription className="text-slate-400 font-medium">
+                  This will permanently remove your <span className="text-white font-bold">{role}</span> interview session and all associated AI feedback. This action cannot be undone. Are you sure you want to proceed?
+                </AlertDialogDescription>
+              </AlertDialogHeader>
+              <AlertDialogFooter className="mt-8">
+                <AlertDialogCancel className="rounded-2xl font-bold bg-white/5 border-white/10 hover:bg-white/10 text-white">
+                  Keep Session
+                </AlertDialogCancel>
+                <AlertDialogAction
+                  onClick={handleDelete}
+                  className="rounded-2xl font-bold bg-red-600 hover:bg-red-500 text-white"
+                  disabled={deleting}
+                >
+                  {deleting ? "Deleting..." : "Yes, Delete Forever"}
+                </AlertDialogAction>
+              </AlertDialogFooter>
+            </AlertDialogContent>
+          </AlertDialog>
+        </div>
       </div>
 
-      {/* Role Title */}
+      {/* Center: Cover Image & Role */}
       <div className="flex flex-col items-center text-center mb-6">
         <div className="relative mb-4">
-          <div className="absolute -inset-2 bg-gradient-to-tr from-blue-600 to-purple-600 rounded-full blur-sm opacity-20 group-hover:opacity-40 transition-opacity"></div>
-          <div className="relative bg-[#1a1a28] rounded-full p-1 border border-white/5">
+          <div
+            className={cn(
+              "absolute -inset-2 rounded-full blur-sm opacity-20 group-hover:opacity-40 transition-opacity",
+              isCompleted ? "bg-blue-600" : "bg-slate-600"
+            )}
+          />
+          <div className="relative bg-[#1a1a28] rounded-full p-1 border border-[var(--border-subtle)]">
             <Image
               src={coverSrc}
-              alt="cover"
+              alt="role cover"
               width={64}
               height={64}
               className="rounded-full object-cover"
             />
           </div>
         </div>
-        <h3 className="text-xl font-bold text-white tracking-tight">
-          {role} <span className="">Interview</span>
+        <h3 className="text-xl font-bold text-[var(--text-primary)] tracking-tight capitalize">
+          {role} <span className="text-[var(--text-secondary)] font-medium">Interview</span>
         </h3>
       </div>
 
-      {/* Stats Box */}
-      <div className="flex items-center justify-between bg-white/[0.03] border border-white/5 rounded-2xl p-4 mb-6">
-        <div className="flex flex-col">
-          <span className="text-[9px] uppercase font-bold text-gray-500 mb-1">Performance</span>
-          <p className="text-lg font-black text-white">
-            {feedback?.totalScore ?? "—"}<span className="text-xs text-gray-600 font-normal">/100</span>
-          </p>
+      {/* Stats: Performance & Stack with Mesh-Glow Hover (Aligned with Strategies) */}
+      <div
+        className={cn(
+          "group/rating relative flex items-center justify-between border rounded-2xl p-4 mb-6 transition-all duration-500 overflow-hidden backdrop-blur-md hover:backdrop-blur-xl",
+          isCompleted
+            ? "bg-blue-500/5 border-blue-500/10 hover:border-blue-500/40 shadow-[0_0_15px_rgba(59,130,246,0.03)] hover:shadow-[0_0_30px_rgba(59,130,246,0.15)]"
+            : "bg-white/[0.03] border-[var(--border-subtle)] hover:border-white/20 hover:shadow-[0_0_20px_rgba(255,255,255,0.05)]"
+        )}
+      >
+        {/* Rating Mesh-Glow Overlay (Strategies Intensity) */}
+        <div 
+          className={cn(
+            "absolute inset-0 opacity-0 group-hover/rating:opacity-100 group-hover:opacity-100 transition-opacity duration-700 pointer-events-none",
+            isCompleted 
+              ? "bg-[radial-gradient(circle_at_top_left,rgba(59,130,246,0.15),transparent_70%)]" 
+              : "bg-[radial-gradient(circle_at_top_left,rgba(255,255,255,0.08),transparent_70%)]"
+          )}
+        />
+
+        <div className="flex flex-col relative z-10 transition-transform group-hover/rating:translate-x-1 duration-500">
+          <span className="text-[9px] uppercase font-bold text-[var(--text-secondary)] mb-1 tracking-widest opacity-70">
+            Performance
+          </span>
+          <div className="flex items-baseline gap-0.5 relative">
+            {/* Score Aura Halo */}
+            <div className={cn(
+              "absolute -inset-6 rounded-full blur-2xl opacity-0 group-hover:opacity-50 transition-opacity duration-700",
+              isCompleted ? "bg-blue-500/25" : "bg-white/10"
+            )} />
+            
+            <p
+              className={cn(
+                "text-2xl font-black transition-all duration-500 group-hover:scale-110",
+                isCompleted ? "text-blue-400 group-hover:text-blue-300" : "text-white group-hover:text-blue-200"
+              )}
+            >
+              {feedback?.totalScore ?? "—"}
+            </p>
+            <span className="text-[10px] text-gray-500 font-bold ml-0.5 opacity-50">/100</span>
+          </div>
         </div>
-        <div className="flex flex-col items-end">
-          <span className="text-[9px] uppercase font-bold text-gray-500 mb-1">Stack</span>
-          <DisplayTechIcons techIcons={techIcons} />
+
+        <div className="flex flex-col items-end relative z-10 transition-transform group-hover/rating:-translate-x-1 duration-500">
+          <span className="text-[9px] uppercase font-bold text-[var(--text-secondary)] mb-1 tracking-widest opacity-70">Stack</span>
+          <div className="group-hover/rating:scale-110 group-hover:scale-105 transition-transform duration-500">
+            <DisplayTechIcons techIcons={techIcons} />
+          </div>
         </div>
       </div>
 
-      <Button asChild className="w-full bg-blue-600 hover:bg-blue-500 text-white font-bold h-12 rounded-xl transition-all active:scale-95 shadow-lg shadow-blue-900/20">
-        <Link href={feedback ? `/interview/${id}/feedback` : `/interview/${id}`}>
-          {feedback ? "Review Results" : "Launch Interview"}
-        </Link>
-      </Button>
+      {/* Action Buttons: Enhanced Interactive States */}
+      <div className="flex flex-col sm:flex-row gap-3">
+        {isCompleted ? (
+          <>
+            <Button
+              asChild
+              variant="outline"
+              className="group/retake flex-1 font-bold h-12 rounded-xl transition-all active:scale-95 hover:scale-[1.02] bg-[var(--search-bg)] hover:bg-blue-500/5 text-[var(--text-primary)] border-[var(--border-subtle)] hover:border-blue-500/40 hover:text-blue-400 hover:shadow-[0_0_15px_rgba(59,130,246,0.1)]"
+            >
+              <Link href={`/interview?role=${encodeURIComponent(role)}&type=${encodeURIComponent(type)}`} className="flex items-center justify-center gap-2">
+                <RotateCcw className="w-4 h-4 transition-transform duration-500 group-hover/retake:rotate-180" />
+                Retake
+              </Link>
+            </Button>
+            <Button
+              asChild
+              className="flex-1 font-bold h-12 rounded-xl transition-all active:scale-95 hover:scale-[1.02] bg-blue-600 hover:bg-blue-500 text-white shadow-lg shadow-blue-600/20 hover:shadow-blue-600/40"
+            >
+              <Link href={`/interview/${id}/feedback`} className="flex items-center justify-center gap-2">
+                <MessageSquare className="w-4 h-4" />
+                Feedback
+              </Link>
+            </Button>
+          </>
+        ) : (
+          <Button
+            asChild
+            className="group/launch w-full font-bold h-12 rounded-xl transition-all active:scale-95 hover:scale-[1.02] bg-blue-600 hover:bg-blue-500 text-white shadow-lg shadow-blue-600/20 hover:shadow-blue-600/40"
+          >
+            <Link href={linkPath} className="flex items-center justify-center gap-2">
+              Launch Interview
+              <ArrowRight className="w-4 h-4 transition-transform duration-300 group-hover/launch:translate-x-1" />
+            </Link>
+          </Button>
+        )}
+      </div>
     </div>
   );
 }

@@ -133,6 +133,22 @@ export const feedbackSchema = z.object({
   strengths: z.array(z.string()),
   areasForImprovement: z.array(z.string()),
   finalAssessment: z.string(),
+  confidenceScore: z.number().min(0).max(100),
+  vocalAnalysis: z.object({
+    fillerWordCount: z.number(),
+    pacing: z.enum(["Slow", "Steady", "Fast"]),
+    topFillerWords: z.array(z.string()),
+    confidenceLevel: z.string(),
+  }),
+  confidenceAnalysis: z.string(),
+  comparisons: z.array(z.object({
+    question: z.string(),
+    userAnswer: z.string(),
+    idealAnswer: z.string(),
+    strength: z.string(),
+    weakness: z.string(),
+    score: z.number()
+  }))
 });
 
 // --- Interview Covers ---
@@ -165,9 +181,11 @@ export interface Interview {
 }
 
 export interface Feedback {
+  id?: string;
   createdAt: string;
   totalScore: number;
   finalAssessment: string;
+  isPublic?: boolean;
 }
 
 // --- Dummy Interviews ---

@@ -5,6 +5,8 @@ import Image from "next/image";
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { vapi } from "@/lib/vapi.sdk";
+import { createFeedback, getInterviewsByUserId } from "@/lib/actions/general.action";
+import { toast } from "sonner";
 
 enum CallStatus {
   INACTIVE = "INACTIVE",
@@ -24,22 +26,58 @@ interface AgentProps {
   interviewId?: string;
   feedbackId?: string;
   type?: string;
+  role?: string;
   questions?: string[];
 }
 
 const sanitizeId = (id?: string) => id?.trim().replace(/^["'](.+)["']$/, "$1") || "";
 
-const Agent = ({ userName, userId, interviewId, feedbackId, type, questions }: AgentProps) => {
+const Agent = ({ userName, userId, interviewId, feedbackId, type, role, questions }: AgentProps) => {
   const router = useRouter();
+  const [retryCount, setRetryCount] = useState(0);
+  const [micState, setMicState] = useState<'unknown' | 'granted' | 'denied' | 'prompt'>('unknown');
   const [status, setStatus] = useState<CallStatus>(CallStatus.INACTIVE);
   const [messages, setMessages] = useState<SavedMessage[]>([]);
   const [isSpeaking, setIsSpeaking] = useState(false);
+  const [volume, setVolume] = useState(0);
+  const [nativeVolume, setNativeVolume] = useState(0);
   const [lastMessage, setLastMessage] = useState<string>("");
   const [textInput, setTextInput] = useState("");
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [useFallback, setUseFallback] = useState(false);
-  const [retryCount, setRetryCount] = useState(0);
   const [isRecovering, setIsRecovering] = useState(false);
+  const [isGenerating, setIsGenerating] = useState(false);
+  const [proTip, setProTip] = useState<string | null>(null);
+  const [liveScore, setLiveScore] = useState<string | null>(null);
+
+  // Local Persistence: Save session
+  useEffect(() => {
+    if (messages.length > 0) {
+      const key = `prepedge-session-${interviewId || 'current'}`;
+      localStorage.setItem(key, JSON.stringify({
+        messages,
+        proTip,
+        liveScore,
+        lastUpdate: new Date().toISOString()
+      }));
+    }
+  }, [messages, proTip, liveScore, interviewId]);
+
+  // Local Persistence: Load session
+  useEffect(() => {
+    const key = `prepedge-session-${interviewId || 'current'}`;
+    const saved = localStorage.getItem(key);
+    if (saved && messages.length === 0) {
+      try {
+        const data = JSON.parse(saved);
+        if (data.messages) setMessages(data.messages);
+        if (data.proTip) setProTip(data.proTip);
+        if (data.liveScore) setLiveScore(data.liveScore);
+      } catch (e) {
+        console.error("Failed to load saved session", e);
+      }
+    }
+  }, [interviewId]);
 
   const handleSendMessage = () => {
     if (!textInput.trim()) return;
@@ -50,7 +88,8 @@ const Agent = ({ userName, userId, interviewId, feedbackId, type, questions }: A
         content: textInput,
       },
     });
-    setMessages((prev) => [...prev, { role: "user", content: textInput }] as SavedMessage[]);
+    const newMessage = { role: "user", content: textInput } as SavedMessage;
+    setMessages((prev) => [...prev, newMessage]);
     setTextInput("");
   };
 
@@ -59,6 +98,21 @@ const Agent = ({ userName, userId, interviewId, feedbackId, type, questions }: A
       console.log("✅ Vapi: call-start fired");
       setStatus(CallStatus.ACTIVE);
       setErrorMessage(null);
+
+      // Inject the generated questions into the conversation dynamically!
+      // This avoids overriding the user's dashboard prompt while giving the AI context.
+      if (questions && questions.length > 0) {
+        const questionsText = `[SYSTEM INSTRUCTION]: Here are the exact questions you MUST ask during this interview:\n${questions.map((q, i) => `${i + 1}. ${q}`).join('\n')}`;
+        
+        vapi.send({
+          type: "add-message",
+          message: {
+            role: "system",
+            content: questionsText
+          }
+        });
+        console.log("✅ Injected generated questions into Vapi context.");
+      }
     };
 
     const onCallEnd = () => {
@@ -83,8 +137,7 @@ const Agent = ({ userName, userId, interviewId, feedbackId, type, questions }: A
     };
 
     const onError = (error: any) => {
-      console.error("❌ Vapi Error Object:", error);
-      
+      console.error("❌ Vapi Raw Error Object:", error);
       let reason = "Unknown error";
       
       if (typeof error === "string") {
@@ -101,45 +154,44 @@ const Agent = ({ userName, userId, interviewId, feedbackId, type, questions }: A
         reason = JSON.stringify(error);
       }
 
-      if (reason.includes("Meeting has ended") || reason.includes("google-llm-failed")) {
-        console.warn("🔄 Automating recovery due to:", reason);
-        handleAutoRecovery(reason);
+      // Vapi triggers an "ejected" error when the session ends gracefully or via timeout.
+      if (reason.includes("Meeting has ended") || reason.includes("ejected")) {
+        console.log("ℹ️ Call concluded or ejected:", reason);
+        setStatus(CallStatus.FINISHED);
         return;
+      }
+
+      // User Voice Sensitivity fix: if there's a mic error, show it clearly
+      if (reason.toLowerCase().includes("permission") || reason.toLowerCase().includes("microphone")) {
+        setErrorMessage("❌ Your browser didn't allow microphone access. Check your address bar lock icon and make sure you are using HTTPS://.");
+      } else {
+        setErrorMessage(`Connection failed: ${reason}`);
       }
 
       console.error("❌ Vapi Error Reason:", reason);
       setStatus(CallStatus.INACTIVE);
-      setErrorMessage(`Connection failed: ${reason}`);
       setIsRecovering(false);
-    };
-
-    const handleAutoRecovery = (errorReason: string) => {
-      if (useFallback) {
-         // Already using fallback but still failing
-         setStatus(CallStatus.INACTIVE);
-         setErrorMessage(`Critical connection fail: ${errorReason}`);
-         setIsRecovering(false);
-         return;
-      }
-
-      setIsRecovering(true);
-
-      if (retryCount === 0) {
-        setRetryCount(1);
-        console.log("🔄 Retrying primary assistant (Attempt 1)...");
-        setTimeout(() => handleCall(), 1500);
-      } else {
-        console.log("🚀 Auto-Switching to Fallback (OpenAI Engine)...");
-        setUseFallback(true);
-        setTimeout(() => handleCall(), 1000);
-      }
     };
 
     vapi.on("call-start", onCallStart);
     vapi.on("call-end", onCallEnd);
     vapi.on("message", onMessage);
-    vapi.on("speech-start", onSpeechStart);
-    vapi.on("speech-end", onSpeechEnd);
+    vapi.on("speech-start", () => {
+      console.log("🎙️ Vapi: User started speaking (Mic active)");
+      setIsSpeaking(true);
+    });
+    vapi.on("speech-end", () => {
+      console.log("🙊 Vapi: User stopped speaking");
+      setIsSpeaking(false);
+    });
+    // Add a volume monitor to help debug the user's microphone
+    vapi.on("volume-level", (vol: number) => {
+      setVolume(vol);
+      if (vol > 0.05) {
+        // Only log once every 50 calls to avoid spamming
+        if (Math.random() > 0.98) console.log("🔊 Mic Input detected (Volume):", vol.toFixed(2));
+      }
+    });
     vapi.on("error", onError);
 
     return () => {
@@ -149,40 +201,79 @@ const Agent = ({ userName, userId, interviewId, feedbackId, type, questions }: A
       vapi.off("speech-start", onSpeechStart);
       vapi.off("speech-end", onSpeechEnd);
       vapi.off("error", onError);
+      vapi.stop();
     };
   }, []);
 
   useEffect(() => {
     if (messages.length > 0) {
-      setLastMessage(messages[messages.length - 1].content);
+      const lastMsgObj = messages[messages.length - 1];
+      setLastMessage(lastMsgObj.content);
+
+      // Extract Pro Tip and Score from assistant messages
+      if (lastMsgObj.role === "assistant" && status === CallStatus.ACTIVE) {
+        const proTipMatch = lastMsgObj.content.match(/Pro Tip:\s*([^\.]+[\.]?)/i);
+        if (proTipMatch) setProTip(proTipMatch[1].trim());
+
+        const scoreMatch = lastMsgObj.content.match(/Final Score:\s*(\d+)/i);
+        if (scoreMatch) setLiveScore(scoreMatch[1]);
+      }
     }
 
     const handleGenerateFeedback = async () => {
-      const score = Math.floor(Math.random() * 30) + 70;
-      const mockInterview = {
-        id: interviewId || `mock-${Date.now()}`,
-        userId: userId || "user1",
-        role: "Mock Session",
-        type: type || "Technical",
-        techstack: ["JavaScript", "React"],
-        level: "Intermediate",
-        questions: questions || [],
-        finalized: true,
-        createdAt: new Date().toISOString(),
-        feedback: {
-          totalScore: score,
-          finalAssessment: "Great effort! A complete evaluation has been generated based on your transcript.",
-          transcript: messages,
-        },
-      };
-
-      const existing = JSON.parse(localStorage.getItem("mock_interviews") || "[]");
-      if (!existing.some((i: any) => i.id === mockInterview.id)) {
-        existing.push(mockInterview);
-        localStorage.setItem("mock_interviews", JSON.stringify(existing));
+      // Small Delay: ensure last transcription finishes
+      await new Promise(r => setTimeout(r, 1500));
+      
+      if (messages.length < 2) {
+        console.warn("⚠️ Not enough messages for feedback generation.");
+        return;
       }
 
-      router.push(`/interview/${interviewId}/feedback`);
+      let finalInterviewId = interviewId;
+      const effectiveUserId = userId || "vapi-session";
+
+      if (!finalInterviewId && effectiveUserId) {
+        try {
+          const recentInterviews = await getInterviewsByUserId(effectiveUserId);
+          if (recentInterviews && recentInterviews.length > 0) {
+            finalInterviewId = recentInterviews[0].id;
+          }
+        } catch (err) {
+          console.error("Failed to fetch recent interview for feedback linking", err);
+        }
+      }
+
+      if (!finalInterviewId || isGenerating) {
+        console.warn("⏭️ Skipping feedback: ID missing or already generating.", { finalInterviewId, isGenerating });
+        return;
+      }
+
+      setIsGenerating(true);
+      const toastId = toast.loading("Analyzing your interview... This may take a minute.");
+      
+      try {
+        console.log("🚀 Calling createFeedback with:", { finalInterviewId, effectiveUserId, messageCount: messages.length });
+        const result = await createFeedback({
+          interviewId: finalInterviewId,
+          userId: effectiveUserId,
+          transcript: messages,
+          feedbackId,
+        });
+
+        if (result.success) {
+          toast.success("Feedback generated!", { id: toastId });
+          console.log("✅ Feedback generated, redirecting to:", `/interview/${finalInterviewId}/feedback`);
+          router.push(`/interview/${finalInterviewId}/feedback`);
+        } else {
+          console.error("❌ Feedback generation failed:", result.error);
+          toast.error(result.error || "Feedback generation failed on server.", { id: toastId });
+          setIsGenerating(false);
+        }
+      } catch (error) {
+        console.error("❌ Exception during createFeedback:", error);
+        toast.error("An error occurred during feedback analysis.", { id: toastId });
+        setIsGenerating(false);
+      }
     };
 
     if (status === CallStatus.FINISHED) {
@@ -192,11 +283,7 @@ const Agent = ({ userName, userId, interviewId, feedbackId, type, questions }: A
         return;
       }
 
-      if (type === "generate") {
-        router.push("/");
-      } else {
-        handleGenerateFeedback();
-      }
+      handleGenerateFeedback();
     }
   }, [messages, status, router, interviewId, userId, type, feedbackId, questions]);
 
@@ -216,12 +303,13 @@ const Agent = ({ userName, userId, interviewId, feedbackId, type, questions }: A
       } catch (micError: any) {
         console.error("❌ Microphone access denied:", micError);
         setErrorMessage(
-          `Microphone blocked: ${micError?.message || "Permission denied"}. Allow mic in your browser and retry.`
+          `Microphone blocked: ${micError?.message || "Permission denied"}. ⚠️ If you are on an ngrok link, please make sure you are using HTTPS:// and not HTTP://.`
         );
         return;
       }
     } else {
-      console.warn("⚠️ navigator.mediaDevices unavailable — likely HTTP (non-secure). Vapi will request mic itself.");
+      setErrorMessage("⚠️ Your browser blocked microphone access because this page is not using a secure (HTTPS) connection. Please switch to the HTTPS link.");
+      return;
     }
 
     setStatus(CallStatus.CONNECTING);
@@ -229,10 +317,76 @@ const Agent = ({ userName, userId, interviewId, feedbackId, type, questions }: A
     try {
       console.log("🚀 Starting Vapi call with full inline assistant config");
 
+      const systemPrompt = `# ROLE
+You are Alex, an Elite Interview Prep Coach from PrepEdge. Your goal is to guide the user through a highly professional and effective mock interview.
+
+# PHASE 1: ONBOARDING
+If any of these details are missing, ask for them one by one:
+1. Job Role
+2. Interview Focus (Technical, Behavioral, Mixed)
+3. Experience Level
+4. Question Count
+5. Tech Stack / Keywords
+
+ONLY call 'generateInterview' once ALL 5 details are confirmed. Use userId: "${userId || 'vapi-session'}".
+
+# PHASE 2: INTERVIEWING
+- Ask the generated questions one by one.
+- **Multimodal Support**: You will receive input via both voice (transcription) and text. Treat both as valid candidate responses. Respond to the substance of their answer.
+- **Pro Tip**: After the user provides an answer, give a brief evaluation and then provide a "Pro Tip: [Your tip here]". Keep the tip under 20 words. 
+- Then, proceed to the next question.
+
+# PHASE 3: WRAP-UP
+When the interview is done:
+1. Provide a "Final Score: [Score]/100".
+2. Say EXACTLY: "Interview complete. Your detailed feedback and score are now available on your home dashboard. Checking out now!".
+3. Then gracefully hang up the call.`;
+
+      // 1. Check Browser Mic Permission first
+      try {
+        const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+        console.log("✅ Browser Microphone Access: GRANTED");
+        setMicState('granted');
+        
+        // --- NATIVE VOLUME MONITOR ---
+        const audioContext = new AudioContext();
+        const source = audioContext.createMediaStreamSource(stream);
+        const analyzer = audioContext.createAnalyser();
+        source.connect(analyzer);
+        const bufferLength = analyzer.frequencyBinCount;
+        const dataArray = new Uint8Array(bufferLength);
+
+        const updateNativeVolume = () => {
+          if (status !== CallStatus.ACTIVE && status !== CallStatus.CONNECTING) {
+            stream.getTracks().forEach(t => t.stop());
+            audioContext.close();
+            return;
+          }
+          analyzer.getByteFrequencyData(dataArray);
+          let sum = 0;
+          for (let i = 0; i < bufferLength; i++) sum += dataArray[i];
+          const avg = sum / bufferLength;
+          setNativeVolume(avg / 128); // Normalize 0-1
+          requestAnimationFrame(updateNativeVolume);
+        };
+        updateNativeVolume();
+        // --- END MONITOR ---
+
+      } catch (err) {
+        console.error("❌ Browser Microphone Access: DENIED", err);
+        setMicState('denied');
+        setErrorMessage("Microphone access denied. Please check your browser and system settings.");
+        return;
+      }
+
       const assistantConfig: any = {
-        name: "PrepEdge AI Interviewer",
-        firstMessage: `Hello ${userName}! I'm Alex, your AI interview coach from PrepEdge. I'm here to help you ace your next interview with a realistic mock session. Let's set it up — what job role are you preparing for?`,
-        transcriber: { provider: "deepgram", model: "nova-2", language: "en-US" },
+        name: "PrepEdge AI Coach",
+        firstMessage: `Hello ${userName}! I'm Alex, your AI Coach for this ${role} interview focused on ${type}. Are you ready to get started?`,
+        transcriber: { 
+          provider: "deepgram", 
+          model: "nova-2", 
+          language: "en-US" 
+        },
         voice: { provider: "11labs", voiceId: "burt" },
         model: {
           provider: "openai",
@@ -240,44 +394,44 @@ const Agent = ({ userName, userId, interviewId, feedbackId, type, questions }: A
           messages: [
             {
               role: "system",
-              content: `You are "Alex", a world-class AI Interview Coach created by PrepEdge. You conduct realistic, professional mock interviews. You are warm yet professional.
-
-# YOUR WORKFLOW — Follow these phases IN ORDER:
-
-## PHASE 1: ONBOARDING (Collect preferences one at a time)
-You MUST collect ALL of the following before moving on. Ask ONE question at a time, wait for the answer, then ask the next:
-1. **Role** — "What job role are you preparing for?" (e.g., Frontend Developer, Data Analyst, Product Manager)
-2. **Interview Type** — "Would you like a Technical interview, a Behavioral interview, or a Mix of both?"
-3. **Experience Level** — "What's your experience level — Junior, Mid-level, or Senior?"
-4. **Number of Questions** — "How many questions would you like to practice? I'd recommend 5 to 10."
-5. **Tech Stack / Skills** — "Which technologies or skills should I focus on?" (e.g., React, Python, SQL, Leadership)
-
-After collecting ALL 5, confirm back: "Great! So I'll run a [type] interview for a [level] [role] position, covering [techstack], with [amount] questions. Let's begin!"
-
-## PHASE 2: INTERVIEW (Ask questions one by one)
-- Generate exactly the number of questions the user requested, tailored to their role, level, type, and tech stack.
-- Ask ONE question at a time. Wait for the user to answer fully before proceeding.
-- After each answer, give a brief "Pro Tip" (max 20 words) to help them improve, then move to the next question.
-- Keep track: say "Question 2 of 5" etc. so the user knows their progress.
-- If the user's answer is vague, ask ONE follow-up for clarity before giving the tip.
-
-## PHASE 3: WRAP-UP (After all questions are done)
-1. Say: "That wraps up all [amount] questions! Here's your performance summary."
-2. Give an overall score out of 100.
-3. Mention 2-3 specific strengths you noticed.
-4. Mention 1-2 areas for improvement with actionable advice.
-5. End with an encouraging closing statement.
-
-# IMPORTANT RULES:
-- NEVER skip the onboarding. You MUST collect all 5 pieces of info.
-- NEVER dump all questions at once. Ask ONE at a time.
-- Keep your responses conversational and concise — this is a voice call, not a text chat.
-- Do NOT use special characters like asterisks, slashes, or markdown formatting since this is voice output.
-- Stay in character as "Alex" at all times. Be encouraging but honest.
-- If the user goes off-topic, gently redirect: "Great thought! Let's get back to the interview."
-- Adapt question difficulty to the stated experience level.`
+              content: systemPrompt
             },
           ],
+          tools: [
+            {
+              type: "function",
+              async: true,
+              messages: [
+                {
+                  type: "request-start",
+                  content: "I am generating your interview now, please give me a few seconds."
+                },
+                {
+                  type: "request-complete",
+                  content: "Perfect, I have the questions ready."
+                }
+              ],
+              function: {
+                name: "generateInterview",
+                description: "Generates a customized interview test based on user choices",
+                parameters: {
+                  type: "object",
+                  properties: {
+                    role: { type: "string", description: "The job role the user is interviewing for" },
+                    type: { type: "string", description: "The focus of the interview" },
+                    level: { type: "string", description: "The seniority level" },
+                    amount: { type: "string", description: "The total number of questions requested" },
+                    techstack: { type: "string", description: "Programming languages or tools" },
+                    userId: { type: "string", description: "The unique ID of the user taking the interview" }
+                  },
+                  required: ["role", "type", "level", "techstack", "amount", "userId"]
+                }
+              },
+              server: {
+                url: `${window.location.origin}/api/vapi/generate`
+              }
+            }
+          ]
         },
       };
 
@@ -299,61 +453,104 @@ After collecting ALL 5, confirm back: "Great! So I'll run a [type] interview for
 
   return (
     <>
-      <div className="w-full flex flex-col items-center justify-start pt-16 gap-10 p-8 min-h-screen bg-black/90">
-
-        {/* Vapi Token Debug Info */}
-        <div className="text-xs text-white/30 font-mono">
-          Vapi Token: {process.env.NEXT_PUBLIC_VAPI_WEB_TOKEN ? `${process.env.NEXT_PUBLIC_VAPI_WEB_TOKEN.slice(0, 8)}...` : "⚠️ NOT SET"} |
-          Assistant: {process.env.NEXT_PUBLIC_VAPI_ASSISTANT_ID ? `${process.env.NEXT_PUBLIC_VAPI_ASSISTANT_ID.slice(0, 8)}...` : "Not set"} |
-          Status: <span className={cn(
-            status === CallStatus.ACTIVE && "text-green-400",
-            status === CallStatus.CONNECTING && "text-yellow-400",
-            status === CallStatus.FINISHED && "text-blue-400",
-            status === CallStatus.INACTIVE && "text-white/40",
-          )}>{status}</span>
-        </div>
+      <div className="w-full flex flex-col items-center justify-start pt-8 md:pt-16 gap-6 md:gap-10 p-4 md:p-8 min-h-screen bg-black/90 overflow-x-hidden">
 
         {/* Error Banner */}
         {errorMessage && (
-          <div className="w-full max-w-2xl bg-red-500/20 border border-red-500/50 rounded-xl px-5 py-4 text-red-300 text-sm text-center">
+          <div className="w-full max-w-2xl bg-red-500/20 border border-red-500/50 rounded-xl px-4 md:px-5 py-3 md:py-4 text-red-300 text-xs md:text-sm text-center">
             ⚠️ {errorMessage}
           </div>
         )}
 
-        <div className="call-view w-full flex flex-col md:flex-row items-center justify-center gap-12">
+        <div className="call-view w-full flex flex-col md:flex-row items-center justify-center gap-12 md:gap-20 relative px-4">
+          {/* Ambient Arena Glow */}
+          <div className={cn(
+             "absolute top-1/2 left-1/4 -translate-x-1/2 -translate-y-1/2 w-96 h-96 bg-blue-600/15 blur-[120px] rounded-full transition-all duration-1000",
+             isSpeaking ? "opacity-100 scale-125" : "opacity-40"
+          )} />
+          <div className={cn(
+             "absolute top-1/2 right-1/4 translate-x-1/2 -translate-y-1/2 w-96 h-96 bg-purple-600/10 blur-[120px] rounded-full transition-all duration-1000",
+             isSpeaking ? "opacity-100 scale-110" : "opacity-20"
+          )} />
 
           {/* AI Interviewer Card */}
-          <div className="w-120 card-interviewer flex flex-col items-center gap-4 p-6 rounded-2xl bg-[#1A1C20] border border-white/10 shadow-2xl">
-            <div className="avatar relative flex items-center justify-center">
-              <div className="bg-[#2A2D32] rounded-full p-4 border-2 border-[#4C5159]">
-                <Image
-                  src="/ai-avatar.png"
-                  alt="AI Interviewer"
-                  width={65}
-                  height={54}
-                  className="object-contain"
-                />
-              </div>
-              {isSpeaking && (
-                <span className="absolute inset-0 rounded-full border-2 border-primary animate-ping opacity-75" />
-              )}
+          <div className="arena-card group z-20 max-w-xs md:max-w-sm">
+            <div className="avatar">
+               <Image
+                 src="/ai-avatar-premium.png"
+                 alt="AI Interviewer"
+                 width={80}
+                 height={80}
+                 className={cn(
+                    "object-contain rounded-full transition-transform duration-500",
+                    isSpeaking ? "scale-110 shadow-[0_0_30px_rgba(59,130,246,0.3)]" : "scale-100 shadow-none"
+                 )}
+               />
+               {isSpeaking && (
+                 <div className="absolute inset-[-10px] rounded-full border-2 border-blue-400/40 animate-ping" />
+               )}
             </div>
-            <h3 className="text-white font-semibold text-xl tracking-tight">AI Interviewer</h3>
+            <h3 className="text-white font-bold text-xl tracking-tight z-10 mt-4 md:mt-6 bg-gradient-to-r from-blue-100 to-blue-300 bg-clip-text text-transparent">AI Coach Alex</h3>
+            <div className="mt-2 flex items-center gap-2">
+                <span className={cn(
+                    "w-2 h-2 rounded-full",
+                    status === CallStatus.ACTIVE ? "bg-emerald-500 animate-pulse" : "bg-white/20"
+                )} />
+                <span className="text-[10px] font-black uppercase tracking-[0.2em] text-white/40">
+                  {status === CallStatus.ACTIVE ? "Online & Listening" : "Initializing Agent"}
+                </span>
+            </div>
           </div>
 
           {/* User Card */}
-          <div className="card-border border-blue-900">
-            <div className="card-content flex flex-col items-center gap-4 bg-[#1A1C20] rounded-2xl p-10">
-              <Image
-                src="/user-avatar.webp"
-                alt="User Avatar"
-                width={120}
-                height={120}
-                className="rounded-full object-cover border-4 border-[#2A2D32]"
-              />
-              <h3 className="text-white/80 font-medium text-lg capitalize">{userName}</h3>
-            </div>
+          <div className="arena-card group z-20 max-w-xs md:max-w-sm">
+             {/* Local Ambient User Glow */}
+             <div className={cn(
+                "absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-80 h-80 bg-emerald-600/10 blur-[100px] rounded-full transition-all duration-1000",
+                isSpeaking ? "opacity-100 scale-125" : "opacity-0"
+             )} />
+             
+             <div className="avatar">
+                <Image
+                  src="/user-avatar.webp"
+                  alt="User Avatar"
+                  width={100}
+                  height={100}
+                  className={cn(
+                    "rounded-full object-cover border-4 border-[#2A2D32] transition-transform duration-500",
+                    isSpeaking ? "scale-110 shadow-[0_0_30px_rgba(16,185,129,0.2)]" : "scale-100 shadow-none"
+                  )}
+                />
+                {isSpeaking && (
+                  <div className="absolute inset-[-10px] rounded-full border-2 border-emerald-400/40 animate-ping" />
+                )}
+             </div>
+             
+             <h3 className="text-white font-bold text-lg md:text-xl capitalize leading-tight mt-4 md:mt-6 z-10">{userName}</h3>
+             <div className="mt-4 flex items-center justify-center gap-2 z-10">
+                 <span className={cn(
+                     "w-2 h-2 rounded-full",
+                     status === CallStatus.ACTIVE ? "bg-emerald-400 animate-pulse" : "bg-white/20"
+                 )} />
+                 <span className="text-[10px] font-black uppercase tracking-[0.2em] text-white/40">
+                   {status === CallStatus.ACTIVE ? "Mic Active" : "Waiting for Call"}
+                 </span>
+             </div>
           </div>
+        </div>
+
+        {/* Live Pro Tip & Score */}
+        <div className="w-full max-w-2xl flex flex-col gap-3 md:gap-4 px-2">
+          {proTip && (
+            <div className="bg-blue-500/10 border border-blue-500/30 rounded-xl px-4 md:px-5 py-2.5 md:py-3 text-blue-300 text-xs md:text-sm animate-in fade-in slide-in-from-top-2">
+              <span className="font-bold text-blue-400">💡 Pro Tip:</span> {proTip}
+            </div>
+          )}
+          {liveScore && (
+            <div className="bg-emerald-500/10 border border-emerald-500/30 rounded-xl px-4 md:px-5 py-2.5 md:py-3 text-emerald-300 text-xs md:text-sm text-center font-bold animate-in zoom-in-95">
+              🎯 Current Performance Estimate: <span className="text-lg md:text-xl text-emerald-400">{liveScore}/100</span>
+            </div>
+          )}
         </div>
 
         {/* Transcript */}
@@ -375,18 +572,18 @@ After collecting ALL 5, confirm back: "Great! So I'll run a [type] interview for
 
         {/* Text input fallback */}
         {status === CallStatus.ACTIVE && (
-          <div className="w-full max-w-2xl mt-4 flex gap-2">
+          <div className="w-full max-w-2xl mt-4 flex flex-col sm:flex-row gap-2 px-2">
             <input
               type="text"
               value={textInput}
               onChange={(e) => setTextInput(e.target.value)}
               onKeyDown={(e) => e.key === "Enter" && handleSendMessage()}
               placeholder="Type your response here..."
-              className="flex-1 bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-blue-500 transition-colors"
+              className="flex-1 bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-sm md:text-base text-white focus:outline-none focus:border-blue-500 transition-colors"
             />
             <button
               onClick={handleSendMessage}
-              className="bg-blue-600 px-6 py-3 rounded-xl text-white font-bold hover:bg-blue-700 transition-all active:scale-95"
+              className="bg-blue-600 px-6 py-3 rounded-xl text-white font-bold hover:bg-blue-700 transition-all active:scale-95 text-sm md:text-base"
             >
               Send
             </button>

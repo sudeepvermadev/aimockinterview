@@ -1,7 +1,12 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
-  allowedDevOrigins: ["10.44.1.3", "localhost", "127.0.0.1"],
+  allowedDevOrigins: [
+    "10.44.1.3",
+    "localhost",
+    "127.0.0.1",
+    "luca-subhyoidean-governmentally.ngrok-free.dev"
+  ],
   experimental: {
     // Enable HTTPS in development so navigator.mediaDevices (mic/WebRTC) works
     // Run: npm run dev -- --experimental-https
@@ -13,6 +18,11 @@ const nextConfig: NextConfig = {
         protocol: "https",
         hostname: "cdn.jsdelivr.net",
         pathname: "/gh/devicons/devicon/icons/**",
+      },
+      {
+        protocol: "https",
+        hostname: "lh3.googleusercontent.com",
+        pathname: "/**",
       },
     ],
   },

@@ -18,7 +18,7 @@ import React from "react";
 const AuthLayout = ({ children }: { children: React.ReactNode }) => {
     return (
         // No html, No body, No toaster (kyunki wo main layout mein hai)
-        <div className="auth-layout flex min-h-screen items-center justify-center bg-[#050508]">
+        <div className="auth-layout flex min-h-screen items-center justify-center bg-background transition-colors duration-300">
             {children}
         </div>
     )

@@ -1,5 +1,9 @@
 import { generateText } from "ai";
-import { google } from "@ai-sdk/google";
+import { createGoogleGenerativeAI } from "@ai-sdk/google";
+
+const google = createGoogleGenerativeAI({
+  apiKey: process.env.GOOGLE_GENERATIVE_AI_API_KEY
+});
 
 import { adminDb } from "@/firebase/admin";
 import { getRandomInterviewCover } from "@/lib/utils";
@@ -21,7 +25,7 @@ export async function POST(request: Request) {
       level = args.level;
       techstack = args.techstack;
       amount = args.amount;
-      userid = "vapi-session"; 
+      userid = args.userId || "vapi-session"; 
     }
   } else {
     // Standard direct call
@@ -29,34 +33,47 @@ export async function POST(request: Request) {
   }
 
   try {
-    const { text: questions } = await generateText({
-      model: google("gemini-2.0-flash-001"),
+    let finalQuestions: string[] = [];
 
-      prompt: `Prepare questions for a job interview.
-        The job role is ${role}.
-        The job experience level is ${level}.
-        The tech stack used in the job is: ${techstack}.
-        The focus between behavioural and technical questions should lean towards: ${type}.
-        The amount of questions required is: ${amount}.
-        Please return only the questions, without any additional text.
-        The questions are going to be read by a voice assistant so do not use "/" or "*" or any other special characters which might break the voice assistant.
-        Return the questions formatted like this:
-        ["Question 1", "Question 2", "Question 3"]
-        
-        Thank you! <3
-    `,
-    });
+    try {
+      const { text: questions } = await generateText({
+        model: google("gemini-2.0-flash-001"),
 
-    console.log("Raw questions from AI:", questions);
-    const cleanedQuestions = questions.replace(/```json/g, "").replace(/```/g, "").trim();
-    const parsedQuestions = JSON.parse(cleanedQuestions);
+        prompt: `Act as an expert interviewer for exactly ${role}.
+          The candidate level is ${level}.
+          The focus is ${type} with a tech stack of ${techstack}.
+          
+          Generate ${amount} high-impact interview questions. 
+          IMPORTANT:
+          1. Return ONLY a valid JSON array of strings.
+          2. Do NOT use markdown formatting, code blocks, or bolding inside the strings.
+          3. Keep questions concise and optimized for being read aloud by a text-to-speech engine.
+          4. No special characters like asterisks, backticks, or slashes.
+          
+          Example format: ["Question 1 text", "Question 2 text"]`,
+      });
+
+      console.log("Raw questions from AI:", questions);
+      const cleanedQuestions = questions.replace(/```json/g, "").replace(/```/g, "").trim();
+      finalQuestions = JSON.parse(cleanedQuestions);
+    } catch (apiError) {
+      console.error("Gemini API Error (using fallback):", apiError);
+      // Fallback: A solid basic interview set for the requested role
+      finalQuestions = [
+        `Can you introduce yourself and tell me why you're interested in being a ${role}?`,
+        `Given the seniority of ${level}, what do you consider the most challenging part of this role?`,
+        `How do you keep your skills updated with technologies like ${techstack}?`,
+        `Describe a difficult scenario you've faced in a previous project and how you resolved it.`,
+        `What are your expectations for the next step in your career journey?`
+      ].slice(0, Number(amount) || 5);
+    }
 
     const interview = {
       role: role,
       type: type,
       level: level,
       techstack: typeof techstack === "string" ? techstack.split(",") : techstack,
-      questions: parsedQuestions,
+      questions: finalQuestions,
       userId: userid,
       finalized: true,
       coverImage: getRandomInterviewCover(),
@@ -71,7 +88,7 @@ export async function POST(request: Request) {
         results: [
           {
             toolCallId: toolCallId,
-            result: `Successfully generated ${parsedQuestions.length} questions. Here they are for reference: ${questions}`
+            result: `Successfully generated ${finalQuestions.length} questions. Here they are for reference: ${JSON.stringify(finalQuestions)}`
           }
         ]
       }, { status: 200 });
