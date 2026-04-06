@@ -1,4 +1,4 @@
-# PrepEdge 🚀
+# PrepEdge 
 
 > **Master Your Interviews with AI-Powered Precision.**
 
