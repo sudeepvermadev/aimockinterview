@@ -122,32 +122,14 @@ export interface InterviewerConfig {
 // export const interviewer: CreateAssistantDTO = { ... }
 
 export const feedbackSchema = z.object({
-  totalScore: z.number(),
-  categoryScores: z.tuple([
-    z.object({ name: z.literal("Communication Skills"), score: z.number(), comment: z.string() }),
-    z.object({ name: z.literal("Technical Knowledge"), score: z.number(), comment: z.string() }),
-    z.object({ name: z.literal("Problem Solving"), score: z.number(), comment: z.string() }),
-    z.object({ name: z.literal("Cultural Fit"), score: z.number(), comment: z.string() }),
-    z.object({ name: z.literal("Confidence and Clarity"), score: z.number(), comment: z.string() }),
-  ]),
-  strengths: z.array(z.string()),
-  areasForImprovement: z.array(z.string()),
-  finalAssessment: z.string(),
-  confidenceScore: z.number().min(0).max(100),
-  vocalAnalysis: z.object({
-    fillerWordCount: z.number(),
-    pacing: z.enum(["Slow", "Steady", "Fast"]),
-    topFillerWords: z.array(z.string()),
-    confidenceLevel: z.string(),
-  }),
-  confidenceAnalysis: z.string(),
-  comparisons: z.array(z.object({
+  overallScore: z.number(),
+  summary: z.string(),
+  details: z.array(z.object({
     question: z.string(),
-    userAnswer: z.string(),
-    idealAnswer: z.string(),
-    strength: z.string(),
-    weakness: z.string(),
-    score: z.number()
+    userResponse: z.string(),
+    correctAnswer: z.string(),
+    marksAwarded: z.number(),
+    feedback: z.string()
   }))
 });
 

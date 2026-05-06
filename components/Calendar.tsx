@@ -22,7 +22,7 @@ interface Schedule {
   id: string;
   date: string;
   time?: string;
-  status: "pending" | "done";
+  status: "pending" | "done" | "missed";
 }
 
 export const Calendar = () => {
@@ -69,15 +69,10 @@ export const Calendar = () => {
 
     const isScheduled = (day: number) => {
         const dateStr = currentMonth.date(day).format("YYYY-MM-DD");
-        return schedules.find(s => s.date === dateStr);
+        return schedules.filter(s => s.date === dateStr);
     };
 
     const openTimePicker = (day: number) => {
-        const existing = isScheduled(day);
-        if (existing) {
-            toast.info(`Already scheduled on ${currentMonth.date(day).format("YYYY-MM-DD")}`);
-            return;
-        }
         setSelectedDay(day);
         setSelectedHour(10);
         setSelectedMinute(0);
@@ -95,11 +90,20 @@ export const Calendar = () => {
         if (selectedDay === null) return;
         const dateStr = currentMonth.date(selectedDay).format("YYYY-MM-DD");
         const timeStr = formatTimeString();
+        
+        // Construct the exact ISO string with local timezone to avoid server mismatch
+        const [timePart, period] = timeStr.split(" ");
+        let [hours, minutes] = timePart.split(":").map(Number);
+        if (period === "PM" && hours !== 12) hours += 12;
+        if (period === "AM" && hours === 12) hours = 0;
+        
+        const scheduledAtISO = currentMonth.date(selectedDay).hour(hours).minute(minutes).second(0).toISOString();
 
         setShowTimePicker(false);
         setActionLoading(dateStr);
         try {
-            const res = await addSchedule(dateStr, timeStr);
+            console.log(`[Schedule] Sending local time: ${scheduledAtISO}`);
+            const res = await addSchedule(dateStr, timeStr, scheduledAtISO);
             if (res.success) {
                 toast.success(`Scheduled for ${dateStr} at ${timeStr}! Confirmation email sent.`);
                 await fetchSchedules();
@@ -116,8 +120,8 @@ export const Calendar = () => {
 
     const incrementHour = () => setSelectedHour(prev => (prev === 12 ? 1 : prev + 1));
     const decrementHour = () => setSelectedHour(prev => (prev === 1 ? 12 : prev - 1));
-    const incrementMinute = () => setSelectedMinute(prev => (prev === 55 ? 0 : prev + 5));
-    const decrementMinute = () => setSelectedMinute(prev => (prev === 0 ? 55 : prev - 5));
+    const incrementMinute = () => setSelectedMinute(prev => (prev === 59 ? 0 : prev + 1));
+    const decrementMinute = () => setSelectedMinute(prev => (prev === 0 ? 59 : prev - 1));
     const togglePeriod = () => setSelectedPeriod(prev => (prev === "AM" ? "PM" : "AM"));
 
     const handleDelete = async (e: React.MouseEvent, scheduleId: string) => {
@@ -173,12 +177,12 @@ export const Calendar = () => {
                             exit={{ opacity: 0, scale: 0.85, y: 30 }}
                             transition={{ type: "spring", damping: 25, stiffness: 300 }}
                             onClick={(e) => e.stopPropagation()}
-                            className="relative w-[92vw] max-w-md bg-white/10 dark:bg-[#0a0a14]/90 backdrop-blur-3xl border border-white/15 rounded-[32px] p-8 shadow-2xl shadow-blue-500/10"
+                            className="relative w-[92vw] max-w-md bg-[var(--surface-card)] backdrop-blur-3xl border border-[var(--border-primary)] rounded-[32px] p-8 shadow-2xl shadow-blue-500/10"
                         >
                             {/* Close Button */}
                             <button
                                 onClick={() => setShowTimePicker(false)}
-                                className="absolute top-5 right-5 p-2 rounded-xl hover:bg-white/10 text-gray-400 hover:text-white transition-all"
+                                className="absolute top-5 right-5 p-2 rounded-xl hover:bg-[var(--surface-base)] text-[var(--text-muted)] hover:text-[var(--text-primary)] transition-all"
                             >
                                 <X size={18} />
                             </button>
@@ -189,10 +193,10 @@ export const Calendar = () => {
                                     <Clock size={12} />
                                     Set Interview Time
                                 </div>
-                                <h2 className="text-2xl font-black text-gray-900 dark:text-white tracking-tight">
+                                <h2 className="text-2xl font-black text-[var(--text-primary)] tracking-tight">
                                     {currentMonth.date(selectedDay).format("MMMM DD, YYYY")}
                                 </h2>
-                                <p className="text-sm text-gray-500 dark:text-gray-400 mt-1 font-medium">
+                                <p className="text-sm text-[var(--text-secondary)] mt-1 font-medium">
                                     Choose when you want to practice
                                 </p>
                             </div>
@@ -203,12 +207,12 @@ export const Calendar = () => {
                                 <div className="flex flex-col items-center gap-2">
                                     <button
                                         onClick={incrementHour}
-                                        className="p-2 rounded-xl bg-white/5 hover:bg-white/10 border border-white/10 text-gray-400 hover:text-white transition-all hover:scale-110 active:scale-95"
+                                        className="p-2 rounded-xl bg-[var(--surface-base)] hover:bg-[var(--surface-card-alt)] border border-[var(--border-subtle)] text-[var(--text-secondary)] hover:text-[var(--text-primary)] transition-all hover:scale-110 active:scale-95"
                                     >
                                         <ChevronUp size={18} />
                                     </button>
-                                    <div className="h-[72px] w-[72px] rounded-2xl bg-white/5 border border-white/10 flex items-center justify-center">
-                                        <span className="text-3xl font-black text-white tabular-nums">
+                                    <div className="h-[72px] w-[72px] rounded-2xl bg-[var(--surface-base)] border border-[var(--border-subtle)] flex items-center justify-center">
+                                        <span className="text-3xl font-black text-[var(--text-primary)] tabular-nums">
                                             {selectedHour.toString().padStart(2, "0")}
                                         </span>
                                     </div>
@@ -230,22 +234,22 @@ export const Calendar = () => {
                                 <div className="flex flex-col items-center gap-2">
                                     <button
                                         onClick={incrementMinute}
-                                        className="p-2 rounded-xl bg-white/5 hover:bg-white/10 border border-white/10 text-gray-400 hover:text-white transition-all hover:scale-110 active:scale-95"
+                                        className="p-2 rounded-xl bg-[var(--surface-base)] hover:bg-[var(--surface-card-alt)] border border-[var(--border-subtle)] text-[var(--text-secondary)] hover:text-[var(--text-primary)] transition-all hover:scale-110 active:scale-95"
                                     >
                                         <ChevronUp size={18} />
                                     </button>
-                                    <div className="h-[72px] w-[72px] rounded-2xl bg-white/5 border border-white/10 flex items-center justify-center">
-                                        <span className="text-3xl font-black text-white tabular-nums">
+                                    <div className="h-[72px] w-[72px] rounded-2xl bg-[var(--surface-base)] border border-[var(--border-subtle)] flex items-center justify-center">
+                                        <span className="text-3xl font-black text-[var(--text-primary)] tabular-nums">
                                             {selectedMinute.toString().padStart(2, "0")}
                                         </span>
                                     </div>
                                     <button
                                         onClick={decrementMinute}
-                                        className="p-2 rounded-xl bg-white/5 hover:bg-white/10 border border-white/10 text-gray-400 hover:text-white transition-all hover:scale-110 active:scale-95"
+                                        className="p-2 rounded-xl bg-[var(--surface-base)] hover:bg-[var(--surface-card-alt)] border border-[var(--border-subtle)] text-[var(--text-secondary)] hover:text-[var(--text-primary)] transition-all hover:scale-110 active:scale-95"
                                     >
                                         <ChevronDown size={18} />
                                     </button>
-                                    <span className="text-[10px] font-black uppercase tracking-widest text-gray-500">Min</span>
+                                    <span className="text-[10px] font-black uppercase tracking-widest text-[var(--text-muted)]">Min</span>
                                 </div>
 
                                 {/* AM/PM Toggle */}
@@ -272,9 +276,9 @@ export const Calendar = () => {
                             </div>
 
                             {/* Preview */}
-                            <div className="bg-white/5 border border-white/10 rounded-2xl p-4 mb-6 text-center">
-                                <p className="text-[10px] font-black uppercase tracking-widest text-gray-500 mb-1">Your Interview Time</p>
-                                <p className="text-lg font-bold text-white">
+                            <div className="bg-[var(--surface-base)] border border-[var(--border-subtle)] rounded-2xl p-4 mb-6 text-center">
+                                <p className="text-[10px] font-black uppercase tracking-widest text-[var(--text-muted)] mb-1">Your Interview Time</p>
+                                <p className="text-lg font-bold text-[var(--text-primary)]">
                                     {currentMonth.date(selectedDay).format("MMM DD")} at{" "}
                                     <span className="text-blue-400">{formatTimeString()}</span>
                                 </p>
@@ -301,24 +305,28 @@ export const Calendar = () => {
                         <CalendarIcon className="text-blue-500 h-7 w-7" />
                     </div>
                     <div>
-                        <h2 className="text-2xl font-bold text-gray-900 dark:text-white">
+                        <h2 className="text-2xl font-bold text-[var(--text-primary)]">
                             {monthName} <span className="text-blue-500">{year}</span>
                         </h2>
-                        <p className="text-sm text-gray-500 dark:text-gray-400 font-medium">Plan your growth path</p>
+                        <p className="text-sm text-[var(--text-secondary)] font-medium">Plan your growth path</p>
                     </div>
                 </div>
 
-                <div className="flex items-center gap-2 relative z-10 bg-gray-100 dark:bg-white/5 p-1.5 rounded-2xl border border-gray-200 dark:border-white/10">
+                <div className="flex items-center gap-2 relative z-10 bg-[var(--surface-base)] p-1.5 rounded-2xl border border-[var(--border-subtle)]">
                     <button 
                         onClick={handlePrevMonth}
-                        className="p-2.5 hover:bg-white dark:hover:bg-white/10 rounded-xl transition-all hover:scale-110 active:scale-95 text-gray-700 dark:text-white"
+                        className="p-2.5 hover:bg-[var(--surface-card)] rounded-xl transition-all hover:scale-110 active:scale-95 text-[var(--text-primary)] relative"
                     >
-                        <ChevronLeft size={20} />
+                        <svg className="absolute inset-0 w-full h-full opacity-10 pointer-events-none" viewBox="0 0 20 20">
+                           <circle cx="10" cy="10" r="10" fill="currentColor" />
+                        </svg>
+                        <ChevronLeft size={20} className="relative z-10" />
                     </button>
-                    <div className="h-4 w-px bg-gray-300 dark:bg-white/10 mx-1" />
+
+                    <div className="h-4 w-px bg-[var(--border-subtle)] mx-1" />
                     <button 
                         onClick={handleNextMonth}
-                        className="p-2.5 hover:bg-white dark:hover:bg-white/10 rounded-xl transition-all hover:scale-110 active:scale-95 text-gray-700 dark:text-white"
+                        className="p-2.5 hover:bg-[var(--surface-card)] rounded-xl transition-all hover:scale-110 active:scale-95 text-[var(--text-primary)]"
                     >
                         <ChevronRight size={20} />
                     </button>
@@ -331,7 +339,7 @@ export const Calendar = () => {
                     <div className="bg-white/5 dark:bg-white/[0.02] border border-white/10 rounded-[32px] p-8 backdrop-blur-xl">
                         <div className="grid grid-cols-7 mb-6">
                             {["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"].map((day) => (
-                                <div key={day} className="text-center text-xs font-black uppercase tracking-widest text-gray-400 dark:text-gray-500">
+                                <div key={day} className="text-center text-xs font-black uppercase tracking-widest text-[var(--text-muted)]">
                                     {day}
                                 </div>
                             ))}
@@ -342,42 +350,47 @@ export const Calendar = () => {
                                 <div key={`empty-${i}`} className="aspect-square" />
                             ))}
                             {days.map((day) => {
-                                const schedule = isScheduled(day);
-                                const isToday = dayjs().isSame(currentMonth.date(day), 'day');
-                                const isPast = dayjs().isAfter(currentMonth.date(day), 'day') && !isToday;
-                                
-                                return (
-                                    <motion.button
-                                        key={day}
-                                        whileHover={{ scale: 1.05 }}
-                                        whileTap={{ scale: 0.95 }}
-                                        onClick={() => openTimePicker(day)}
-                                        disabled={isPast}
-                                        className={cn(
-                                            "relative aspect-square rounded-2xl flex flex-col items-center justify-center transition-all duration-300 border group",
-                                            isToday ? "bg-blue-500 border-blue-400 text-white shadow-lg shadow-blue-500/25" : 
-                                            schedule ? "bg-white/10 dark:bg-white/5 border-white/10 text-gray-900 dark:text-white" : 
-                                            "bg-transparent border-transparent hover:border-white/20 text-gray-700 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-white/5",
-                                            isPast && "opacity-30 cursor-not-allowed hover:bg-transparent hover:border-transparent"
-                                        )}
-                                    >
-                                        <span className="text-lg font-bold">{day}</span>
-                                        {schedule && (
-                                            <>
-                                                <div className={cn(
-                                                    "absolute bottom-2 h-1.5 w-1.5 rounded-full",
-                                                    schedule.status === "done" ? "bg-emerald-400" : "bg-amber-400 animate-pulse"
-                                                )} />
-                                                {schedule.time && (
+                                        const daySchedules = isScheduled(day);
+                                        const isToday = dayjs().isSame(currentMonth.date(day), 'day');
+                                        const isPast = dayjs().isAfter(currentMonth.date(day), 'day') && !isToday;
+                                        
+                                        return (
+                                            <motion.button
+                                                key={day}
+                                                whileHover={{ scale: 1.05 }}
+                                                whileTap={{ scale: 0.95 }}
+                                                onClick={() => openTimePicker(day)}
+                                                disabled={isPast}
+                                                className={cn(
+                                                    "relative aspect-square rounded-2xl flex flex-col items-center justify-center transition-all duration-300 border group",
+                                                    isToday ? "bg-blue-500 border-blue-400 text-white shadow-lg shadow-blue-500/25" : 
+                                                    daySchedules.length > 0 ? "bg-[var(--surface-base)] border-[var(--border-subtle)] text-[var(--text-primary)]" : 
+                                                    "bg-transparent border-transparent hover:border-[var(--border-primary)] text-[var(--text-secondary)] hover:bg-[var(--surface-base)]",
+                                                    isPast && "opacity-30 cursor-not-allowed hover:bg-transparent hover:border-transparent"
+                                                )}
+                                            >
+                                                <span className="text-lg font-bold">{day}</span>
+                                                {daySchedules.length > 0 && (
+                                                    <div className="flex gap-1 bottom-2 absolute">
+                                                        {daySchedules.slice(0, 3).map((s, idx) => (
+                                                            <div key={idx} className={cn(
+                                                                "h-1.5 w-1.5 rounded-full",
+                                                                s.status === "done" ? "bg-emerald-400" : 
+                                                                s.status === "missed" ? "bg-red-500" : "bg-amber-400 animate-pulse"
+                                                            )} />
+                                                        ))}
+                                                        {daySchedules.length > 3 && <span className="text-[6px] font-black text-gray-500">+{daySchedules.length - 3}</span>}
+                                                    </div>
+                                                )}
+                                                
+                                                {daySchedules.length === 1 && daySchedules[0].time && (
                                                     <span className={cn(
                                                         "text-[8px] font-bold mt-0.5 leading-none",
                                                         isToday ? "text-white/80" : "text-blue-400/80"
                                                     )}>
-                                                        {schedule.time}
+                                                        {daySchedules[0].time}
                                                     </span>
                                                 )}
-                                            </>
-                                        )}
                                         
                                         {actionLoading === currentMonth.date(day).format("YYYY-MM-DD") && (
                                             <div className="absolute inset-0 bg-black/20 rounded-2xl flex items-center justify-center backdrop-blur-[1px]">
@@ -411,8 +424,8 @@ export const Calendar = () => {
 
                 {/* Sidebar: Upcoming & Legend */}
                 <div className="space-y-6">
-                    <div className="bg-white/5 dark:bg-white/[0.02] border border-white/10 rounded-[32px] p-6 backdrop-blur-xl flex flex-col gap-6">
-                        <h3 className="text-sm font-black uppercase tracking-widest text-gray-500 dark:text-gray-400 px-2 flex items-center justify-between">
+                    <div className="bg-[var(--surface-card)] border border-[var(--border-primary)] rounded-[32px] p-6 backdrop-blur-xl flex flex-col gap-6">
+                        <h3 className="text-sm font-black uppercase tracking-widest text-[var(--text-muted)] px-2 flex items-center justify-between">
                             Scheduled Events
                             <span className="h-2 w-2 rounded-full bg-amber-400 animate-ping" />
                         </h3>
@@ -420,13 +433,18 @@ export const Calendar = () => {
                         <div className="space-y-3 max-h-[400px] overflow-y-auto pr-2 custom-scrollbar">
                             <AnimatePresence mode="popLayout">
                                 {schedules.length === 0 ? (
-                                    <div className="text-center py-12 px-4 border-2 border-dashed border-white/5 rounded-[24px]">
-                                        <AlertCircle className="mx-auto h-8 w-8 text-white/20 mb-3" />
-                                        <p className="text-xs text-white/30 font-bold uppercase tracking-tight">No interviews scheduled yet</p>
+                                    <div className="text-center py-12 px-4 border-2 border-dashed border-[var(--border-subtle)] rounded-[24px]">
+                                        <AlertCircle className="mx-auto h-8 w-8 text-[var(--text-muted)] mb-3" />
+                                        <p className="text-xs text-[var(--text-muted)] font-bold uppercase tracking-tight">No interviews scheduled yet</p>
                                     </div>
                                 ) : (
                                     schedules
-                                    .sort((a, b) => dayjs(a.date).unix() - dayjs(b.date).unix())
+                                    .sort((a: any, b: any) => {
+                                        if (a.scheduledAt && b.scheduledAt) {
+                                            return new Date(a.scheduledAt).getTime() - new Date(b.scheduledAt).getTime();
+                                        }
+                                        return dayjs(a.date).unix() - dayjs(b.date).unix();
+                                    })
                                     .map((s) => (
                                         <motion.div
                                             key={s.id}
@@ -434,18 +452,20 @@ export const Calendar = () => {
                                             initial={{ opacity: 0, scale: 0.9 }}
                                             animate={{ opacity: 1, scale: 1 }}
                                             exit={{ opacity: 0, scale: 0.9 }}
-                                            className="group relative bg-white/5 hover:bg-white/10 dark:bg-white/[0.03] dark:hover:bg-white/[0.08] border border-white/10 rounded-2xl p-4 transition-all"
+                                            className="group relative bg-[var(--surface-base)] hover:bg-[var(--surface-card-alt)] border border-[var(--border-subtle)] rounded-2xl p-4 transition-all"
                                         >
                                             <div className="flex items-center justify-between gap-4">
                                                 <div className="flex items-center gap-3">
                                                     <div className={cn(
                                                         "h-10 w-10 rounded-xl flex items-center justify-center transition-colors",
-                                                        s.status === "done" ? "bg-emerald-500/20 text-emerald-500" : "bg-amber-500/20 text-amber-500"
+                                                        s.status === "done" ? "bg-emerald-500/20 text-emerald-500" : 
+                                                        s.status === "missed" ? "bg-red-500/20 text-red-500" : "bg-amber-500/20 text-amber-500"
                                                     )}>
-                                                        {s.status === "done" ? <CheckCircle2 size={18} /> : <Clock size={18} />}
+                                                        {s.status === "done" ? <CheckCircle2 size={18} /> : 
+                                                         s.status === "missed" ? <AlertCircle size={18} /> : <Clock size={18} />}
                                                     </div>
                                                     <div>
-                                                        <p className="text-sm font-bold text-gray-900 dark:text-white uppercase tracking-tighter">
+                                                        <p className="text-sm font-bold text-[var(--text-primary)] uppercase tracking-tighter">
                                                             {dayjs(s.date).format("MMM DD, YYYY")}
                                                         </p>
                                                         {s.time && (
@@ -454,7 +474,9 @@ export const Calendar = () => {
                                                                 {s.time}
                                                             </p>
                                                         )}
-                                                        <p className={cn("text-[10px] font-black uppercase tracking-widest opacity-60", s.status === 'done' ? 'text-emerald-400' : 'text-amber-400')}>
+                                                        <p className={cn("text-[10px] font-black uppercase tracking-widest opacity-60", 
+                                                            s.status === 'done' ? 'text-emerald-400' : 
+                                                            s.status === 'missed' ? 'text-red-400' : 'text-amber-400')}>
                                                             {s.status}
                                                         </p>
                                                     </div>
@@ -485,20 +507,24 @@ export const Calendar = () => {
                     </div>
 
                     {/* Status Legend */}
-                    <div className="bg-white/5 dark:bg-white/[0.02] border border-white/10 rounded-[32px] p-6 backdrop-blur-xl">
-                        <h3 className="text-xs font-black uppercase tracking-widest text-gray-500 mb-6">Status Key</h3>
+                    <div className="bg-[var(--surface-card)] border border-[var(--border-primary)] rounded-[32px] p-6 backdrop-blur-xl">
+                        <h3 className="text-xs font-black uppercase tracking-widest text-[var(--text-muted)] mb-6">Status Key</h3>
                         <div className="space-y-4">
                             <div className="flex items-center gap-3">
                                 <div className="h-3 w-3 rounded-full bg-amber-400" />
-                                <span className="text-xs font-bold text-gray-700 dark:text-gray-300 uppercase">Scheduled (Pending)</span>
+                                <span className="text-xs font-bold text-[var(--text-secondary)] uppercase">Scheduled (Pending)</span>
                             </div>
                             <div className="flex items-center gap-3">
                                 <div className="h-3 w-3 rounded-full bg-emerald-400" />
-                                <span className="text-xs font-bold text-gray-700 dark:text-gray-300 uppercase">Interview Completed</span>
+                                <span className="text-xs font-bold text-[var(--text-secondary)] uppercase">Interview Completed</span>
                             </div>
                             <div className="flex items-center gap-3">
                                 <div className="h-3 w-3 rounded-full bg-blue-500" />
-                                <span className="text-xs font-bold text-gray-700 dark:text-gray-300 uppercase">Current Day</span>
+                                <span className="text-xs font-bold text-[var(--text-secondary)] uppercase">Current Day</span>
+                            </div>
+                            <div className="flex items-center gap-3">
+                                <div className="h-3 w-3 rounded-full bg-red-500" />
+                                <span className="text-xs font-bold text-[var(--text-secondary)] uppercase">Missed Session</span>
                             </div>
                         </div>
                     </div>

@@ -8,6 +8,7 @@ export type NotificationType =
   | "schedule_confirmed"
   | "reminder_sent"
   | "interview_completed"
+  | "missed_interview"
   | "streak_milestone"
   | "system";
 

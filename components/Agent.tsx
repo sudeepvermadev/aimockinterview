@@ -2,11 +2,13 @@
 
 import { cn } from "@/lib/utils";
 import Image from "next/image";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import { vapi } from "@/lib/vapi.sdk";
 import { createFeedback, getInterviewsByUserId } from "@/lib/actions/general.action";
 import { toast } from "sonner";
+import { Quote, Activity, CheckCircle } from "lucide-react";
+import { Button } from "@/components/ui/button";
 
 enum CallStatus {
   INACTIVE = "INACTIVE",
@@ -28,27 +30,30 @@ interface AgentProps {
   type?: string;
   role?: string;
   questions?: string[];
+  userPhotoUrl?: string;
 }
 
-const sanitizeId = (id?: string) => id?.trim().replace(/^["'](.+)["']$/, "$1") || "";
 
-const Agent = ({ userName, userId, interviewId, feedbackId, type, role, questions }: AgentProps) => {
+const Agent = ({ userName, userId, interviewId, feedbackId, type, role, questions, userPhotoUrl }: AgentProps) => {
   const router = useRouter();
-  const [retryCount, setRetryCount] = useState(0);
-  const [micState, setMicState] = useState<'unknown' | 'granted' | 'denied' | 'prompt'>('unknown');
   const [status, setStatus] = useState<CallStatus>(CallStatus.INACTIVE);
   const [messages, setMessages] = useState<SavedMessage[]>([]);
   const [isSpeaking, setIsSpeaking] = useState(false);
-  const [volume, setVolume] = useState(0);
-  const [nativeVolume, setNativeVolume] = useState(0);
   const [lastMessage, setLastMessage] = useState<string>("");
   const [textInput, setTextInput] = useState("");
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
-  const [useFallback, setUseFallback] = useState(false);
-  const [isRecovering, setIsRecovering] = useState(false);
   const [isGenerating, setIsGenerating] = useState(false);
   const [proTip, setProTip] = useState<string | null>(null);
   const [liveScore, setLiveScore] = useState<string | null>(null);
+  const [callId, setCallId] = useState<string | null>(null);
+  
+  // Missing States found during fix
+  const [isRecovering, setIsRecovering] = useState(false);
+  const [volume, setVolume] = useState(0);
+  const [retryCount, setRetryCount] = useState(0);
+  const [useFallback, setUseFallback] = useState(false);
+  const [micState, setMicState] = useState<'pending' | 'granted' | 'denied'>('pending');
+  const [nativeVolume, setNativeVolume] = useState(0);
 
   // Local Persistence: Save session
   useEffect(() => {
@@ -58,26 +63,21 @@ const Agent = ({ userName, userId, interviewId, feedbackId, type, role, question
         messages,
         proTip,
         liveScore,
+        callId,
         lastUpdate: new Date().toISOString()
       }));
     }
-  }, [messages, proTip, liveScore, interviewId]);
+  }, [messages, proTip, liveScore, interviewId, callId]);
 
-  // Local Persistence: Load session
+  // Reset session state when interview parameters change (Next.js component reuse)
   useEffect(() => {
-    const key = `prepedge-session-${interviewId || 'current'}`;
-    const saved = localStorage.getItem(key);
-    if (saved && messages.length === 0) {
-      try {
-        const data = JSON.parse(saved);
-        if (data.messages) setMessages(data.messages);
-        if (data.proTip) setProTip(data.proTip);
-        if (data.liveScore) setLiveScore(data.liveScore);
-      } catch (e) {
-        console.error("Failed to load saved session", e);
-      }
-    }
-  }, [interviewId]);
+    setMessages([]);
+    setLastMessage("");
+    setProTip(null);
+    setLiveScore(null);
+    setErrorMessage(null);
+    setCallId(null);
+  }, [interviewId, role, type]);
 
   const handleSendMessage = () => {
     if (!textInput.trim()) return;
@@ -115,6 +115,11 @@ const Agent = ({ userName, userId, interviewId, feedbackId, type, role, question
       }
     };
 
+    const onCallStartSuccess = (event: any) => {
+      console.log("✅ Vapi: call-start-success", event);
+      if (event?.callId) setCallId(event.callId);
+    };
+
     const onCallEnd = () => {
       console.log("✅ Vapi: call-end fired");
       setStatus(CallStatus.FINISHED);
@@ -122,9 +127,18 @@ const Agent = ({ userName, userId, interviewId, feedbackId, type, role, question
 
     const onMessage = (message: any) => {
       console.log("📨 Vapi message:", message);
+      
       if (message.type === "transcript" && message.transcriptType === "final") {
         const newMessage = { role: message.role, content: message.transcript } as SavedMessage;
         setMessages((prev) => [...prev, newMessage]);
+
+        // Detect end of interview to stop call gracefully
+        if (message.transcript.toLowerCase().includes("interview complete") || 
+            message.transcript.toLowerCase().includes("interview is complete")) {
+          console.log("🎯 Conclusion detected in transcript. Ending call...");
+          vapi.stop();
+          setStatus(CallStatus.FINISHED);
+        }
       }
     };
 
@@ -174,6 +188,7 @@ const Agent = ({ userName, userId, interviewId, feedbackId, type, role, question
     };
 
     vapi.on("call-start", onCallStart);
+    vapi.on("call-start-success", onCallStartSuccess);
     vapi.on("call-end", onCallEnd);
     vapi.on("message", onMessage);
     vapi.on("speech-start", () => {
@@ -184,6 +199,7 @@ const Agent = ({ userName, userId, interviewId, feedbackId, type, role, question
       console.log("🙊 Vapi: User stopped speaking");
       setIsSpeaking(false);
     });
+
     // Add a volume monitor to help debug the user's microphone
     vapi.on("volume-level", (vol: number) => {
       setVolume(vol);
@@ -196,6 +212,7 @@ const Agent = ({ userName, userId, interviewId, feedbackId, type, role, question
 
     return () => {
       vapi.off("call-start", onCallStart);
+      vapi.off("call-start-success", onCallStartSuccess);
       vapi.off("call-end", onCallEnd);
       vapi.off("message", onMessage);
       vapi.off("speech-start", onSpeechStart);
@@ -203,79 +220,91 @@ const Agent = ({ userName, userId, interviewId, feedbackId, type, role, question
       vapi.off("error", onError);
       vapi.stop();
     };
-  }, []);
+  }, [questions]); // Re-bind if questions change
 
   useEffect(() => {
     if (messages.length > 0) {
       const lastMsgObj = messages[messages.length - 1];
-      setLastMessage(lastMsgObj.content);
+      if (lastMsgObj.content !== lastMessage) {
+        setLastMessage(lastMsgObj.content);
+      }
 
       // Extract Pro Tip and Score from assistant messages
       if (lastMsgObj.role === "assistant" && status === CallStatus.ACTIVE) {
         const proTipMatch = lastMsgObj.content.match(/Pro Tip:\s*([^\.]+[\.]?)/i);
         if (proTipMatch) setProTip(proTipMatch[1].trim());
 
-        const scoreMatch = lastMsgObj.content.match(/Final Score:\s*(\d+)/i);
-        if (scoreMatch) setLiveScore(scoreMatch[1]);
+        const scoreMatch = lastMsgObj.content.match(/(?:Final Score|Score|Marks|Assessment|Index):\s*(\d+)|(\d+)\s*(?:up to 100|out of 100|marks)/i);
+        if (scoreMatch) setLiveScore(scoreMatch[1] || scoreMatch[2]);
+      }
+    }
+  }, [messages, status, lastMessage]);
+
+  const handleGenerateFeedback = useCallback(async () => {
+    // Small Delay: ensure last transcription finishes
+    await new Promise(r => setTimeout(r, 1500));
+    
+    if (messages.length < 2) {
+      console.warn("⚠️ Not enough messages for feedback generation.");
+      return;
+    }
+
+    let finalInterviewId = interviewId;
+    const effectiveUserId = userId || "vapi-session";
+
+    if (!finalInterviewId && effectiveUserId) {
+      try {
+        const recentInterviews = await getInterviewsByUserId(effectiveUserId);
+        if (recentInterviews && recentInterviews.length > 0) {
+          finalInterviewId = recentInterviews[0].id;
+        }
+      } catch (err) {
+        console.error("Failed to fetch recent interview for feedback linking", err);
       }
     }
 
-    const handleGenerateFeedback = async () => {
-      // Small Delay: ensure last transcription finishes
-      await new Promise(r => setTimeout(r, 1500));
-      
-      if (messages.length < 2) {
-        console.warn("⚠️ Not enough messages for feedback generation.");
-        return;
-      }
+    if (!finalInterviewId || isGenerating) {
+      console.warn("⏭️ Skipping feedback: ID missing or already generating.", { finalInterviewId, isGenerating });
+      return;
+    }
 
-      let finalInterviewId = interviewId;
-      const effectiveUserId = userId || "vapi-session";
+    setIsGenerating(true);
+    const toastId = toast.loading("Analyzing your interview... This may take a minute.");
+    
+    try {
+      console.log("🚀 Calling createFeedback with:", { finalInterviewId, effectiveUserId, messageCount: messages.length, liveScore });
+      const result = await createFeedback({
+        interviewId: finalInterviewId,
+        userId: effectiveUserId,
+        transcript: messages,
+        questions: questions,
+        feedbackId,
+        liveScore: liveScore ? parseInt(liveScore) : undefined
+      });
 
-      if (!finalInterviewId && effectiveUserId) {
-        try {
-          const recentInterviews = await getInterviewsByUserId(effectiveUserId);
-          if (recentInterviews && recentInterviews.length > 0) {
-            finalInterviewId = recentInterviews[0].id;
-          }
-        } catch (err) {
-          console.error("Failed to fetch recent interview for feedback linking", err);
-        }
-      }
 
-      if (!finalInterviewId || isGenerating) {
-        console.warn("⏭️ Skipping feedback: ID missing or already generating.", { finalInterviewId, isGenerating });
-        return;
-      }
-
-      setIsGenerating(true);
-      const toastId = toast.loading("Analyzing your interview... This may take a minute.");
-      
-      try {
-        console.log("🚀 Calling createFeedback with:", { finalInterviewId, effectiveUserId, messageCount: messages.length });
-        const result = await createFeedback({
-          interviewId: finalInterviewId,
-          userId: effectiveUserId,
-          transcript: messages,
-          feedbackId,
-        });
-
-        if (result.success) {
-          toast.success("Feedback generated!", { id: toastId });
-          console.log("✅ Feedback generated, redirecting to:", `/interview/${finalInterviewId}/feedback`);
+      if (result.success) {
+        toast.success("Feedback generated!", { id: toastId });
+        console.log("✅ Feedback generated, redirecting to:", `/interview/${finalInterviewId}/feedback`);
+        router.push(`/interview/${finalInterviewId}/feedback`);
+      } else {
+        console.error("❌ Feedback generation failed:", result.error);
+        toast.error(result.error || "Feedback generation failed on server. Redirecting to transcript...", { id: toastId });
+        // Even if it failed, redirect to feedback page to show the captured transcript (Tracking System)
+        setTimeout(() => {
           router.push(`/interview/${finalInterviewId}/feedback`);
-        } else {
-          console.error("❌ Feedback generation failed:", result.error);
-          toast.error(result.error || "Feedback generation failed on server.", { id: toastId });
-          setIsGenerating(false);
-        }
-      } catch (error) {
-        console.error("❌ Exception during createFeedback:", error);
-        toast.error("An error occurred during feedback analysis.", { id: toastId });
-        setIsGenerating(false);
+        }, 2000);
       }
-    };
+    } catch (error) {
+      console.error("❌ Exception during createFeedback:", error);
+      toast.error("An error occurred during feedback analysis. Showing session log...", { id: toastId });
+      setTimeout(() => {
+        router.push(`/interview/${finalInterviewId}/feedback`);
+      }, 2000);
+    }
+  }, [messages, interviewId, userId, isGenerating, questions, feedbackId, liveScore, router]);
 
+  useEffect(() => {
     if (status === CallStatus.FINISHED) {
       // Only redirect if there was no error — otherwise let the user see the rejection message
       if (errorMessage) {
@@ -285,10 +314,21 @@ const Agent = ({ userName, userId, interviewId, feedbackId, type, role, question
 
       handleGenerateFeedback();
     }
-  }, [messages, status, router, interviewId, userId, type, feedbackId, questions]);
+  }, [status, errorMessage, handleGenerateFeedback]);
 
   const handleCall = async () => {
+    // Reset all session states before starting a new call
+    setMessages([]);
+    setLastMessage("");
+    setProTip(null);
+    setLiveScore(null);
     setErrorMessage(null);
+    setCallId(null);
+
+    if (interviewId || 'current') {
+      localStorage.removeItem(`prepedge-session-${interviewId || 'current'}`);
+    }
+
     if (!isRecovering) {
       setRetryCount(0);
       setUseFallback(false);
@@ -451,9 +491,85 @@ When the interview is done:
     vapi.stop();
   };
 
+  if (status === CallStatus.FINISHED) {
+    return (
+      <div className="w-full min-h-screen bg-[var(--surface-base)] px-6 py-20 flex flex-col items-center">
+        <div className="max-w-4xl w-full space-y-12">
+          {/* HEADER */}
+          <div className="text-center space-y-4">
+            <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-emerald-500/10 border border-emerald-500/20 text-emerald-600 dark:text-emerald-400 text-[10px] font-black uppercase tracking-widest mx-auto">
+              <CheckCircle className="w-3 h-3" /> Session Successfully Concluded
+            </div>
+            <h1 className="text-5xl font-black text-[var(--text-primary)] tracking-tighter">Interview Performance Report</h1>
+            <p className="text-[var(--text-secondary)] font-bold max-w-xl mx-auto leading-relaxed">
+              Your interview with AI Coach Alex has finished. Review the session log below while we finalize your technical analysis.
+            </p>
+          </div>
+
+          {/* LAST USER RESPONSE ONLY */}
+          {(() => {
+            const lastUserMsg = [...messages].reverse().find(m => m.role === 'user');
+            if (!lastUserMsg) return null;
+            return (
+              <div className="bg-[var(--surface-card)] rounded-[3rem] border border-[var(--border-primary)] p-8 backdrop-blur-xl shadow-2xl relative overflow-hidden">
+                <div className="absolute top-0 right-0 p-10 opacity-5">
+                  <Quote className="w-40 h-40 text-blue-500" />
+                </div>
+                <div className="relative z-10 space-y-4">
+                  <h3 className="text-xs font-black text-[var(--text-muted)] uppercase tracking-[0.3em] flex items-center gap-2">
+                    <Activity className="w-4 h-4" /> Your Last Response
+                  </h3>
+                  <div className="p-6 rounded-[2rem] border bg-[var(--surface-base)] border-[var(--border-subtle)]">
+                    <div className="flex items-center gap-2 mb-3">
+                      <div className="w-6 h-6 bg-[var(--surface-card-alt)] rounded-lg flex items-center justify-center text-[10px] font-black text-[var(--text-muted)]">U</div>
+                      <span className="text-[10px] font-black uppercase tracking-widest text-[var(--text-muted)]">{userName || 'Candidate'}</span>
+                    </div>
+                    <p className="text-sm leading-relaxed text-[var(--text-secondary)]">{lastUserMsg.content}</p>
+                  </div>
+                </div>
+              </div>
+            );
+          })()}
+
+          {/* ACTIONS */}
+          <div className="flex flex-col sm:flex-row items-center justify-center gap-4 pt-10">
+            <Button
+              onClick={() => {
+                if (isGenerating) {
+                   toast.info("Generating report... please wait.");
+                } else {
+                   const effectiveInterviewId = interviewId;
+                   router.push(`/interview/${effectiveInterviewId}/feedback`);
+                }
+              }}
+              className="bg-blue-600 hover:bg-blue-500 text-white px-10 py-7 rounded-2xl font-black text-lg shadow-2xl shadow-blue-600/20 w-full sm:w-auto transition-all active:scale-95"
+            >
+              {isGenerating ? (
+                <span className="flex items-center gap-3">
+                  <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                  Generating Full Analysis...
+                </span>
+              ) : (
+                "View Detailed Performance Analysis"
+              )}
+            </Button>
+            
+            <Button
+              variant="outline"
+              onClick={() => window.location.reload()}
+              className="bg-[var(--surface-base)] border-[var(--border-subtle)] hover:bg-[var(--surface-card-alt)] text-[var(--text-secondary)] px-10 py-7 rounded-2xl font-black text-lg w-full sm:w-auto transition-all active:scale-95"
+            >
+              Start New Mock Interview
+            </Button>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <>
-      <div className="w-full flex flex-col items-center justify-start pt-8 md:pt-16 gap-6 md:gap-10 p-4 md:p-8 min-h-screen bg-black/90 overflow-x-hidden">
+      <div className="w-full flex flex-col items-center justify-start pt-8 md:pt-16 gap-6 md:gap-10 p-4 md:p-8 min-h-screen bg-[var(--surface-base)] overflow-x-hidden">
 
         {/* Error Banner */}
         {errorMessage && (
@@ -490,13 +606,13 @@ When the interview is done:
                  <div className="absolute inset-[-10px] rounded-full border-2 border-blue-400/40 animate-ping" />
                )}
             </div>
-            <h3 className="text-white font-bold text-xl tracking-tight z-10 mt-4 md:mt-6 bg-gradient-to-r from-blue-100 to-blue-300 bg-clip-text text-transparent">AI Coach Alex</h3>
+            <h3 className="text-[var(--text-primary)] font-bold text-xl tracking-tight z-10 mt-4 md:mt-6 bg-gradient-to-r from-blue-400 to-blue-600 bg-clip-text text-transparent">AI Coach Alex</h3>
             <div className="mt-2 flex items-center gap-2">
                 <span className={cn(
                     "w-2 h-2 rounded-full",
-                    status === CallStatus.ACTIVE ? "bg-emerald-500 animate-pulse" : "bg-white/20"
+                    status === CallStatus.ACTIVE ? "bg-emerald-500 animate-pulse" : "bg-[var(--text-muted)] opacity-20"
                 )} />
-                <span className="text-[10px] font-black uppercase tracking-[0.2em] text-white/40">
+                <span className="text-[10px] font-black uppercase tracking-[0.2em] text-[var(--text-muted)]">
                   {status === CallStatus.ACTIVE ? "Online & Listening" : "Initializing Agent"}
                 </span>
             </div>
@@ -512,27 +628,29 @@ When the interview is done:
              
              <div className="avatar">
                 <Image
-                  src="/user-avatar.webp"
+                  src={userPhotoUrl || "/user-avatar.webp"}
                   alt="User Avatar"
                   width={100}
                   height={100}
+                  priority
                   className={cn(
-                    "rounded-full object-cover border-4 border-[#2A2D32] transition-transform duration-500",
+                    "rounded-full object-cover border-4 border-[var(--border-primary)] transition-transform duration-500",
                     isSpeaking ? "scale-110 shadow-[0_0_30px_rgba(16,185,129,0.2)]" : "scale-100 shadow-none"
                   )}
+                  unoptimized={userPhotoUrl?.startsWith('data:')}
                 />
                 {isSpeaking && (
                   <div className="absolute inset-[-10px] rounded-full border-2 border-emerald-400/40 animate-ping" />
                 )}
              </div>
              
-             <h3 className="text-white font-bold text-lg md:text-xl capitalize leading-tight mt-4 md:mt-6 z-10">{userName}</h3>
+              <h3 className="text-[var(--text-primary)] font-bold text-lg md:text-xl capitalize leading-tight mt-4 md:mt-6 z-10">{userName}</h3>
              <div className="mt-4 flex items-center justify-center gap-2 z-10">
                  <span className={cn(
                      "w-2 h-2 rounded-full",
-                     status === CallStatus.ACTIVE ? "bg-emerald-400 animate-pulse" : "bg-white/20"
+                     status === CallStatus.ACTIVE ? "bg-emerald-400 animate-pulse" : "bg-[var(--text-muted)] opacity-20"
                  )} />
-                 <span className="text-[10px] font-black uppercase tracking-[0.2em] text-white/40">
+                 <span className="text-[10px] font-black uppercase tracking-[0.2em] text-[var(--text-muted)]">
                    {status === CallStatus.ACTIVE ? "Mic Active" : "Waiting for Call"}
                  </span>
              </div>
@@ -542,13 +660,13 @@ When the interview is done:
         {/* Live Pro Tip & Score */}
         <div className="w-full max-w-2xl flex flex-col gap-3 md:gap-4 px-2">
           {proTip && (
-            <div className="bg-blue-500/10 border border-blue-500/30 rounded-xl px-4 md:px-5 py-2.5 md:py-3 text-blue-300 text-xs md:text-sm animate-in fade-in slide-in-from-top-2">
-              <span className="font-bold text-blue-400">💡 Pro Tip:</span> {proTip}
+            <div className="bg-blue-500/10 border border-blue-500/30 rounded-xl px-4 md:px-5 py-2.5 md:py-3 text-blue-600 dark:text-blue-300 text-xs md:text-sm animate-in fade-in slide-in-from-top-2">
+              <span className="font-bold text-blue-600 dark:text-blue-400">💡 Pro Tip:</span> {proTip}
             </div>
           )}
           {liveScore && (
-            <div className="bg-emerald-500/10 border border-emerald-500/30 rounded-xl px-4 md:px-5 py-2.5 md:py-3 text-emerald-300 text-xs md:text-sm text-center font-bold animate-in zoom-in-95">
-              🎯 Current Performance Estimate: <span className="text-lg md:text-xl text-emerald-400">{liveScore}/100</span>
+            <div className="bg-emerald-500/10 border border-emerald-500/30 rounded-xl px-4 md:px-5 py-2.5 md:py-3 text-emerald-600 dark:text-emerald-300 text-xs md:text-sm text-center font-bold animate-in zoom-in-95">
+              🎯 Current Performance Estimate: <span className="text-lg md:text-xl text-emerald-600 dark:text-emerald-400">{liveScore}/100</span>
             </div>
           )}
         </div>
@@ -556,11 +674,11 @@ When the interview is done:
         {/* Transcript */}
         {messages.length > 0 && lastMessage && (
           <div className="transcript-border mt-4 w-full flex justify-center">
-            <div className="transcript w-full max-w-2xl px-6 py-4 bg-white/5 border border-white/10 rounded-xl shadow-lg">
+            <div className="transcript">
               <p
                 key={lastMessage}
                 className={cn(
-                  "text-white/90 text-center text-lg transition-all duration-500",
+                  "text-[var(--text-primary)] text-center text-lg transition-all duration-500",
                   "animate-in fade-in slide-in-from-bottom-2"
                 )}
               >
@@ -579,7 +697,7 @@ When the interview is done:
               onChange={(e) => setTextInput(e.target.value)}
               onKeyDown={(e) => e.key === "Enter" && handleSendMessage()}
               placeholder="Type your response here..."
-              className="flex-1 bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-sm md:text-base text-white focus:outline-none focus:border-blue-500 transition-colors"
+              className="flex-1 bg-[var(--surface-base)] border border-[var(--border-subtle)] rounded-xl px-4 py-3 text-sm md:text-base text-[var(--text-primary)] focus:outline-none focus:border-blue-500 transition-colors"
             />
             <button
               onClick={handleSendMessage}
@@ -600,7 +718,7 @@ When the interview is done:
               >
                 <span className="flex items-center gap-2">
                   <span className="w-2 h-2 bg-white rounded-full animate-pulse" />
-                  {status === CallStatus.FINISHED ? "Start New Call" : "Start Call"}
+                  Start Call
                 </span>
               </button>
 

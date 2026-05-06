@@ -5,12 +5,18 @@ import { auth } from "@/firebase/client";
 import { onAuthStateChanged, signOut, User } from "firebase/auth";
 import Image from "next/image";
 import Link from "next/link";
-import { LogOut, User as UserIcon, Sparkles, LayoutDashboard, Settings, ChevronRight, X, Trash2, AlertTriangle, Loader2, Calendar, Bell } from "lucide-react";
+import { Camera, Loader2, Sparkles, LayoutDashboard, Settings, ChevronRight, X, Trash2, AlertTriangle, Calendar, Bell, LogOut, User as UserIcon, Pencil } from "lucide-react";
+import { ref, uploadBytes, getDownloadURL } from "firebase/storage";
+import { storage } from "@/firebase/client";
+import { updateUserPhoto } from "@/lib/actions/auth.action";
+import ImageCropper from "./ImageCropper";
+import { motion, AnimatePresence, Variants } from "framer-motion";
+import { useRouter } from "next/navigation";
+import { toast } from "sonner";
+import { cn } from "@/lib/utils";
+import { updateProfile } from "firebase/auth";
 import { deleteUserAccount, getCurrentUser } from "@/lib/actions/auth.action";
 import { getUnreadNotificationCount } from "@/lib/actions/notifications.action";
-import { toast } from "sonner";
-import { useRouter } from "next/navigation";
-import { motion, AnimatePresence, Variants } from "framer-motion";
 
 const UserMenu = () => {
   const [user, setUser] = useState<User | null>(null);
@@ -20,7 +26,10 @@ const UserMenu = () => {
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
   const [unreadCount, setUnreadCount] = useState(0);
+  const [uploading, setUploading] = useState(false);
+  const [tempImage, setTempImage] = useState<string | null>(null);
   const router = useRouter();
+  const fileInputRef = useRef<HTMLInputElement>(null);
   const closeTimerRef = useRef<NodeJS.Timeout | null>(null);
 
   useEffect(() => {
@@ -63,7 +72,7 @@ const UserMenu = () => {
     }, 300);
   };
 
-  if (loading) return <div className="h-10 w-10 animate-pulse bg-white/5 rounded-full border border-white/10" />;
+  if (loading) return <div className="h-10 w-10 animate-pulse bg-[var(--surface-card)] rounded-full border border-[var(--border-subtle)]" />;
 
   if (!user) {
     return (
@@ -105,7 +114,7 @@ const UserMenu = () => {
       await signOut(auth);
       setIsOpen(false);
       setShowDeleteConfirm(false);
-      toast.success("Signed out successfully.");
+      toast.success("Signed out successfully. We'll miss you!");
       router.refresh();
       router.push("/");
     } catch (error) {
@@ -155,35 +164,41 @@ const UserMenu = () => {
         onMouseEnter={handleMouseEnter}
         onMouseLeave={handleMouseLeave}
     >
-      {/* --- Trigger: Small Circle Logo --- */}
+      {/* --- Trigger: Small Circle Logo with Dropdown Arrow --- */}
       <button 
         onClick={() => setIsOpen(!isOpen)}
-        className="relative group p-[2px] rounded-full transition-all duration-300 active:scale-90 outline-none"
+        className="flex items-center gap-2 group p-1 pr-2 rounded-full transition-all duration-300 active:scale-95 outline-none hover:bg-white/5 border border-transparent hover:border-white/10"
       >
-        <div className="absolute -inset-0.5 bg-gradient-to-tr from-blue-500 to-purple-500 rounded-full opacity-0 group-hover:opacity-100 blur-[2px] transition duration-500"></div>
-        
-        <div className="relative h-10 w-10 rounded-full bg-[conic-gradient(from_180deg_at_50%_50%,#1e3a8a_0deg,#3b82f6_120deg,#2563eb_240deg,#1e3a8a_360deg)] flex items-center justify-center text-white font-bold text-base shadow-inner border border-white/20 overflow-hidden uppercase">
-            {user.photoURL ? (
-                <Image 
-                src={user.photoURL} 
+        <div className="relative">
+          {/* Animated Ring Effect */}
+          <div className="absolute -inset-0.5 bg-gradient-to-tr from-blue-500 to-purple-500 rounded-full opacity-0 group-hover:opacity-100 blur-[2px] transition duration-500"></div>
+          
+          <div className="relative h-9 w-9 rounded-full bg-[conic-gradient(from_180deg_at_50%_50%,#1e3a8a_0deg,#3b82f6_120deg,#2563eb_240deg,#1e3a8a_360deg)] flex items-center justify-center text-white font-bold text-base shadow-inner border border-white/20 overflow-hidden uppercase">
+              <Image 
+                src={userData?.photoURL || user.photoURL || "/user-avatar.webp"} 
                 alt="avatar" 
-                width={40} 
-                height={40} 
+                width={36} 
+                height={36} 
                 className="object-cover" 
-                />
-            ) : (
-                <span>{userInitial}</span>
-            )}
+                unoptimized={userData?.photoURL?.startsWith('data:') || user.photoURL?.startsWith('blob:')}
+              />
+          </div>
+
+          {/* Global Notification Badge */}
+          {unreadCount > 0 && (
+            <span className="absolute -top-0.5 -right-0.5 h-3.5 w-3.5 bg-red-500 border-2 border-[var(--surface-base)] rounded-full flex items-center justify-center z-20 shadow-lg shadow-red-500/40">
+              <span className="relative text-[7px] font-black text-white">{unreadCount > 9 ? '9+' : unreadCount}</span>
+            </span>
+          )}
         </div>
 
-        {/* Global Notification Badge */}
-        {unreadCount > 0 && (
-          <span className="absolute -top-0.5 -right-0.5 h-4 w-4 bg-red-500 border-2 border-[#050505] rounded-full flex items-center justify-center z-20 shadow-lg shadow-red-500/40">
-            <span className="absolute inset-0 rounded-full bg-red-400 animate-ping opacity-40"></span>
-            <span className="relative text-[8px] font-black text-white">{unreadCount > 9 ? '9+' : unreadCount}</span>
-          </span>
-        )}
+        {/* Dropdown Arrow */}
+        <ChevronRight className={cn(
+          "w-4 h-4 text-[var(--text-secondary)] transition-all duration-500 ease-out rotate-90",
+          isOpen && "rotate-[270deg] text-blue-500"
+        )} />
       </button>
+
 
       {/* --- Dropdown Menu --- */}
       <AnimatePresence>
@@ -193,12 +208,12 @@ const UserMenu = () => {
             animate="visible"
             exit="exit"
             variants={menuVariants}
-            className="absolute right-0 mt-4 w-80 bg-[#0d0d12]/95 border border-white/10 rounded-[32px] shadow-[0_20px_50px_rgba(0,0,0,0.8)] z-50 overflow-hidden backdrop-blur-3xl origin-top-right"
+            className="absolute right-0 mt-4 w-80 bg-[var(--dropdown-bg)]/95 border border-[var(--dropdown-border)] rounded-[32px] shadow-[0_20px_50px_rgba(0,0,0,0.2)] dark:shadow-[0_20px_50px_rgba(0,0,0,0.8)] z-50 overflow-hidden backdrop-blur-3xl origin-top-right"
           >
             {/* Close Button */}
             <button 
               onClick={() => setIsOpen(false)}
-              className="absolute top-6 right-6 p-2 text-white/50 hover:text-white transition-colors z-[60] cursor-pointer"
+              className="absolute top-6 right-6 p-2 text-[var(--dropdown-text)] hover:text-[var(--dropdown-text-hover)] transition-colors z-[60] cursor-pointer"
             >
               <X size={20} />
             </button>
@@ -207,48 +222,80 @@ const UserMenu = () => {
             <div className="flex flex-col items-center p-8 pb-6 bg-gradient-to-b from-blue-600/10 to-transparent">
               <motion.div variants={itemVariants} className="relative mb-4 group">
                 <div className="absolute -inset-4 bg-blue-500/20 rounded-full blur-3xl opacity-60"></div>
-                <div className="relative h-24 w-24 rounded-full bg-[radial-gradient(circle_at_top_left,_var(--tw-gradient-stops))] from-blue-400 via-blue-700 to-indigo-950 flex items-center justify-center text-white font-extrabold text-4xl border-[5px] border-[#0d0d12] shadow-2xl uppercase tracking-tighter overflow-hidden">
-                  {user.photoURL ? (
-                    <Image 
-                      src={user.photoURL} 
-                      alt="avatar" 
-                      width={96} 
-                      height={96} 
-                      className="rounded-full object-cover" 
-                    />
-                  ) : (
-                    <span className="relative z-10">{userInitial}</span>
-                  )}
+                
+                {/* Ring Effect */}
+                <div className="absolute -inset-1 bg-gradient-to-tr from-blue-500 to-purple-500 rounded-full opacity-0 group-hover:opacity-100 blur-sm transition-all duration-700 animate-pulse" />
+                <div className="absolute -inset-0.5 rounded-full border border-dashed border-blue-500/50 group-hover:border-blue-500 group-hover:rotate-90 transition-all duration-1000" />
+
+                <div className="relative h-24 w-24 rounded-full bg-[var(--surface-base)] flex items-center justify-center border-[5px] border-[var(--dropdown-bg)] shadow-2xl overflow-hidden">
+                  <img 
+                    src={userData?.photoURL || user.photoURL || "/user-avatar.webp"} 
+                    alt="" 
+                    className="h-full w-full object-cover" 
+                  />
                   <div className="absolute inset-0 bg-gradient-to-tr from-white/10 to-transparent pointer-events-none"></div>
                 </div>
+
+                {/* Floating Upload Button (Pencil Design) */}
+                <div 
+                    onClick={() => !uploading && fileInputRef.current?.click()}
+                    className={cn(
+                      "absolute -bottom-1 -right-1 h-6 w-6 bg-blue-600 rounded-lg flex items-center justify-center text-white shadow-lg border-2 border-[var(--dropdown-bg)] cursor-pointer hover:bg-blue-700 hover:scale-110 transition-all z-30 group/btn",
+                      uploading && "opacity-90 cursor-wait"
+                    )}
+                >
+                    {uploading ? (
+                      <div className="h-2.5 w-2.5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                    ) : (
+                      <Pencil className="w-2.5 h-2.5 group-hover/btn:rotate-12 transition-transform" />
+                    )}
+                </div>
+
+                <input 
+                  type="file" 
+                  ref={fileInputRef} 
+                  onChange={(e) => {
+                    const file = e.target.files?.[0];
+                    if (!file) return;
+                    if (file.size > 2 * 1024 * 1024) {
+                      toast.error("Image too large! Please use a file smaller than 2MB.");
+                      return;
+                    }
+                    const reader = new FileReader();
+                    reader.onload = () => setTempImage(reader.result as string);
+                    reader.readAsDataURL(file);
+                  }} 
+                  className="hidden" 
+                  accept="image/*" 
+                />
               </motion.div>
 
-              <div className="text-center w-full px-4">
-                <motion.p variants={itemVariants} className="text-xl font-bold text-white tracking-tight truncate">
-                  {userData?.name || user.displayName || "User Account"}
-                </motion.p>
-                <motion.p variants={itemVariants} className="text-sm text-white/70 font-medium truncate mt-0.5 mb-4">
-                  {user.email}
-                </motion.p>
+                <motion.div variants={itemVariants} className="text-center w-full px-4">
+                  <p className="text-xl font-bold text-[var(--dropdown-text-hover)] tracking-tight truncate">
+                    {userData?.name || user.displayName || "User Account"}
+                  </p>
+                  <p className="text-sm text-[var(--dropdown-text)] font-medium truncate mt-0.5 mb-4">
+                    {user.email}
+                  </p>
+                </motion.div>
                 
                 <motion.div variants={itemVariants}>
                   <Link 
                     href="/profile"
                     onClick={() => setIsOpen(false)}
-                    className="inline-flex items-center gap-2 px-6 py-2 bg-white/5 border border-white/10 rounded-full text-sm font-semibold text-white hover:bg-white/10 hover:border-white/20 transition-all active:scale-95"
+                    className="inline-flex items-center gap-2 px-6 py-2 bg-[var(--dropdown-item-hover)] border border-[var(--dropdown-border)] rounded-full text-sm font-semibold text-[var(--dropdown-text-hover)] hover:bg-[var(--dropdown-item-hover)] hover:border-[var(--dropdown-border)] transition-all active:scale-95"
                   >
                     Manage Account <ChevronRight size={14} />
                   </Link>
                 </motion.div>
               </div>
-            </div>
-
+            
             {/* Scrollable Features Section */}
             <div className="max-h-[min(280px,calc(100vh-420px))] overflow-y-auto custom-scrollbar">
               {/* Menu Items */}
               <div className="px-3 py-1 space-y-1">
                 <motion.div variants={itemVariants}>
-                  <Link href="/dashboard" onClick={() => setIsOpen(false)} className="w-full flex items-center gap-4 px-4 py-3 text-sm text-white/70 hover:bg-white/5 rounded-2xl transition-all group hover:text-white">
+                  <Link href="/dashboard" onClick={() => setIsOpen(false)} className="w-full flex items-center gap-4 px-4 py-3 text-sm text-[var(--dropdown-text)] hover:bg-[var(--dropdown-item-hover)] rounded-2xl transition-all group hover:text-[var(--dropdown-text-hover)]">
                     <div className="p-2 bg-blue-500/10 rounded-xl group-hover:bg-blue-500/20 transition-colors">
                       <LayoutDashboard size={18} className="text-blue-400" />
                     </div>
@@ -257,7 +304,7 @@ const UserMenu = () => {
                 </motion.div>
                 
                 <motion.div variants={itemVariants}>
-                  <Link href="/interview" onClick={() => setIsOpen(false)} className="w-full flex items-center gap-4 px-4 py-3 text-sm text-white/70 hover:bg-white/5 rounded-2xl transition-all group hover:text-white">
+                  <Link href="/interview" onClick={() => setIsOpen(false)} className="w-full flex items-center gap-4 px-4 py-3 text-sm text-[var(--dropdown-text)] hover:bg-[var(--dropdown-item-hover)] rounded-2xl transition-all group hover:text-[var(--dropdown-text-hover)]">
                     <div className="p-2 bg-purple-500/10 rounded-xl group-hover:bg-purple-500/20 transition-colors">
                       <Sparkles size={18} className="text-purple-400" />
                     </div>
@@ -266,7 +313,7 @@ const UserMenu = () => {
                 </motion.div>
 
                 <motion.div variants={itemVariants}>
-                  <Link href="/pricing" onClick={() => setIsOpen(false)} className="w-full flex items-center gap-4 px-4 py-3 text-sm text-white/70 hover:bg-white/5 rounded-2xl transition-all group hover:text-white">
+                  <Link href="/pricing" onClick={() => setIsOpen(false)} className="w-full flex items-center gap-4 px-4 py-3 text-sm text-[var(--dropdown-text)] hover:bg-[var(--dropdown-item-hover)] rounded-2xl transition-all group hover:text-[var(--dropdown-text-hover)]">
                     <div className="p-2 bg-yellow-500/10 rounded-xl group-hover:bg-yellow-500/20 transition-colors">
                       <Sparkles size={18} className="text-yellow-400" />
                     </div>
@@ -275,7 +322,7 @@ const UserMenu = () => {
                 </motion.div>
 
                 <motion.div variants={itemVariants}>
-                  <Link href="/#history" onClick={() => setIsOpen(false)} className="w-full flex items-center gap-4 px-4 py-3 text-sm text-white/70 hover:bg-white/5 rounded-2xl transition-all group hover:text-white">
+                  <Link href="/#history" onClick={() => setIsOpen(false)} className="w-full flex items-center gap-4 px-4 py-3 text-sm text-[var(--dropdown-text)] hover:bg-[var(--dropdown-item-hover)] rounded-2xl transition-all group hover:text-[var(--dropdown-text-hover)]">
                     <div className="p-2 bg-emerald-500/10 rounded-xl group-hover:bg-emerald-500/20 transition-colors">
                       <LayoutDashboard size={18} className="text-emerald-400" />
                     </div>
@@ -284,7 +331,7 @@ const UserMenu = () => {
                 </motion.div>
 
                 <motion.div variants={itemVariants}>
-                  <Link href="/scheduling" onClick={() => setIsOpen(false)} className="w-full flex items-center gap-4 px-4 py-3 text-sm text-white/70 hover:bg-white/5 rounded-2xl transition-all group hover:text-white">
+                  <Link href="/scheduling" onClick={() => setIsOpen(false)} className="w-full flex items-center gap-4 px-4 py-3 text-sm text-[var(--dropdown-text)] hover:bg-[var(--dropdown-item-hover)] rounded-2xl transition-all group hover:text-[var(--dropdown-text-hover)]">
                     <div className="p-2 bg-blue-500/10 rounded-xl group-hover:bg-blue-500/20 transition-colors">
                       <Calendar size={18} className="text-blue-400" />
                     </div>
@@ -293,7 +340,7 @@ const UserMenu = () => {
                 </motion.div>
 
                 <motion.div variants={itemVariants}>
-                  <Link href="/notifications" onClick={() => setIsOpen(false)} className="w-full flex items-center gap-4 px-4 py-3 text-sm text-white/70 hover:bg-white/5 rounded-2xl transition-all group hover:text-white border-t border-white/5 mt-1 pt-4">
+                  <Link href="/notifications" onClick={() => setIsOpen(false)} className="w-full flex items-center gap-4 px-4 py-3 text-sm text-[var(--dropdown-text)] hover:bg-[var(--dropdown-item-hover)] rounded-2xl transition-all group hover:text-[var(--dropdown-text-hover)] border-t border-[var(--dropdown-border)] mt-1 pt-4">
                     <div className="relative p-2 bg-orange-500/10 rounded-xl group-hover:bg-orange-500/20 transition-colors">
                       <Bell size={18} className="text-orange-400" />
                       {unreadCount > 0 && (
@@ -314,9 +361,9 @@ const UserMenu = () => {
                 </motion.div>
 
                 <motion.div variants={itemVariants}>
-                  <Link href="/profile" onClick={() => setIsOpen(false)} className="w-full flex items-center gap-4 px-4 py-3 text-sm text-white/70 hover:bg-white/5 rounded-2xl transition-all group hover:text-white">
+                  <Link href="/profile" onClick={() => setIsOpen(false)} className="w-full flex items-center gap-4 px-4 py-3 text-sm text-[var(--dropdown-text)] hover:bg-[var(--dropdown-item-hover)] rounded-2xl transition-all group hover:text-[var(--dropdown-text-hover)]">
                     <div className="p-2 bg-gray-500/10 rounded-xl group-hover:bg-gray-500/20 transition-colors">
-                      <Settings size={18} className="text-white/70 group-hover:text-white" />
+                      <Settings size={18} className="text-[var(--dropdown-text)] group-hover:text-[var(--dropdown-text-hover)]" />
                     </div>
                     <span className="font-medium">Settings</span>
                   </Link>
@@ -332,19 +379,36 @@ const UserMenu = () => {
                     initial={{ opacity: 0, scale: 0.95, y: 10 }}
                     animate={{ opacity: 1, scale: 1, y: 0 }}
                     exit={{ opacity: 0, scale: 0.95, y: 10 }}
-                    className="absolute bottom-full left-0 right-0 mb-4 mx-3 bg-[#15151e] border border-white/10 rounded-[24px] p-6 shadow-[0_20px_40px_rgba(0,0,0,0.9)] z-[70] backdrop-blur-2xl"
+                    className="absolute bottom-full left-0 right-0 mb-4 mx-3 bg-[var(--surface-card)] border border-[var(--border-primary)] rounded-[24px] p-6 shadow-[0_20px_40px_rgba(0,0,0,0.4)] dark:shadow-[0_20px_40px_rgba(0,0,0,0.9)] z-[70] backdrop-blur-2xl"
                     >
-                    <div className="absolute -bottom-1.5 left-12 w-3 h-3 bg-[#15151e] border-r border-b border-white/10 rotate-45"></div>
+                    <div className="absolute -bottom-1.5 left-12 w-3 h-3 bg-[var(--surface-card)] border-r border-b border-[var(--border-primary)] rotate-45"></div>
 
                     <div className="flex flex-col items-center text-center">
                         <div className="h-12 w-12 rounded-2xl bg-red-500/10 flex items-center justify-center mb-4">
                         <AlertTriangle size={24} className="text-red-500" />
                         </div>
                         
-                        <h3 className="text-base font-bold text-white mb-2">Account Security</h3>
-                        <p className="text-xs text-white/50 mb-6 leading-relaxed">
-                        Would you like to sign out of your session or <span className="text-red-400 font-semibold">permanently delete</span> all your data?
+                        <h3 className="text-base font-bold text-[var(--text-primary)] mb-2 tracking-tight">Leaving PrepEdge?</h3>
+                        <p className="text-xs text-[var(--text-secondary)] mb-4 leading-relaxed px-2">
+                        Would you like to sign out of your session or <span className="text-red-400 font-semibold underline decoration-red-500/30 underline-offset-4">permanently delete</span> all your data?
                         </p>
+
+                        {/* Feedback Prompt */}
+                        <div className="w-full bg-[var(--dropdown-item-hover)] border border-[var(--dropdown-border)] rounded-2xl p-4 mb-6 text-left relative overflow-hidden group">
+                           <div className="absolute top-0 right-0 p-2 opacity-10 group-hover:opacity-20 transition-opacity">
+                              <Sparkles size={32} className="text-blue-500" />
+                           </div>
+                           <p className="text-[9px] font-black text-blue-400 uppercase tracking-[0.2em] mb-2 flex items-center gap-2">
+                              Your feedback matters
+                              <span className="h-1 w-1 rounded-full bg-blue-500 animate-pulse" />
+                           </p>
+                           <p className="text-[11px] text-[var(--text-primary)] font-medium leading-relaxed italic">
+                              "Kya aapko hamari website use karne mein koi dikkaat hui? Aapko hamari website mein kya achha laga?"
+                           </p>
+                           <p className="text-[9px] text-[var(--text-muted)] mt-3 font-bold uppercase tracking-widest text-center border-t border-[var(--dropdown-border)] pt-2">
+                              We'd love to hear from you
+                           </p>
+                        </div>
                         
                         <div className="flex flex-col w-full gap-3">
                         <button
@@ -377,7 +441,7 @@ const UserMenu = () => {
                         <button
                             disabled={isDeleting}
                             onClick={() => setShowDeleteConfirm(false)}
-                            className="w-full py-2 text-[10px] text-white/30 hover:text-white transition-all font-bold uppercase tracking-[0.2em] mt-1"
+                            className="w-full py-2 text-[10px] text-[var(--text-muted)] hover:text-[var(--text-primary)] transition-all font-bold uppercase tracking-[0.2em] mt-1"
                         >
                             Stay Logged In
                         </button>
@@ -399,9 +463,60 @@ const UserMenu = () => {
             </motion.div>
             
             <div className="pb-6 pt-2 text-center opacity-30 select-none">
-                <p className="text-[10px] text-white uppercase tracking-[0.3em] font-black">PrepEdge Premium</p>
+                <p className="text-[10px] text-[var(--dropdown-text)] uppercase tracking-[0.3em] font-black">PrepEdge Premium</p>
             </div>
           </motion.div>
+        )}
+      </AnimatePresence>
+
+      <AnimatePresence>
+        {tempImage && (
+          <ImageCropper
+            image={tempImage}
+            onCropComplete={async (croppedBlob) => {
+              // Step 1: Close modal immediately
+              setTempImage(null);
+              if (!user) return;
+              
+              // Optimistic UI Update
+              const optimisticUrl = URL.createObjectURL(croppedBlob);
+              const previousPhotoUrl = user.photoURL;
+              
+              // Step 2: Update UI instantly
+              setUser({ ...user, photoURL: optimisticUrl } as User);
+              toast.success("Profile updated!");
+              
+              // Step 3: Background sync
+              (async () => {
+                try {
+                    setUploading(true);
+                    
+                    // Convert Blob to Base64 String for 100% FREE storage in Firestore
+                    const reader = new FileReader();
+                    const base64Promise = new Promise<string>((resolve) => {
+                      reader.onloadend = () => resolve(reader.result as string);
+                      reader.readAsDataURL(croppedBlob);
+                    });
+                    
+                    const base64String = await base64Promise;
+                    
+                    // Save directly to Firestore Database
+                    await updateUserPhoto(user.uid, base64String);
+                    
+                    // Update local state for immediate feedback
+                    setUserData({...userData, photoURL: base64String});
+                    router.refresh();
+                } catch (err) {
+                    console.error(err);
+                    setUserData({...userData, photoURL: previousPhotoUrl});
+                } finally {
+                    setUploading(false);
+                    URL.revokeObjectURL(optimisticUrl);
+                }
+              })();
+            }}
+            onCancel={() => setTempImage(null)}
+          />
         )}
       </AnimatePresence>
     </div>

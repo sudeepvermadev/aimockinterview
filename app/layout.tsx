@@ -16,14 +16,11 @@ export const metadata: Metadata = {
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="en" className={cn("font-sans", geist.variable)} suppressHydrationWarning>
-      <head>
-        <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/devicons/devicon@v2.15.1/devicon.min.css" />
-      </head>
-      <body className={`${monaSans.className} antialiased`}>
+      <body className={`${monaSans.className} antialiased`} suppressHydrationWarning>
         <Providers>
           {children}
-          <Toaster position="top-center" richColors />
         </Providers>
+        <Toaster position="top-center" richColors />
       </body>
     </html>
   );

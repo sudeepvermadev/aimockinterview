@@ -169,7 +169,8 @@ import { auth } from "@/firebase/client";
 import { useForm } from "react-hook-form";
 import { useRouter } from "next/navigation";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { useState } from "react";
+import { useState, useEffect } from "react";
+
 
 import {
   createUserWithEmailAndPassword,
@@ -210,6 +211,16 @@ const AuthForm = ({ type }: { type: FormType }) => {
       password: "",
     },
   });
+
+  // Reset form when modal opens to ensure clean fields
+  useEffect(() => {
+    form.reset({
+      name: "",
+      email: "",
+      password: "",
+    });
+  }, [form]);
+
 
   const handleResetPassword = async () => {
     const email = form.getValues("email");
@@ -329,14 +340,7 @@ const AuthForm = ({ type }: { type: FormType }) => {
         </Link>
         </div>
 
-        <button 
-            type="button"
-            onClick={() => router.back()}
-            className="absolute top-6 right-6 text-muted-foreground hover:text-foreground transition-all duration-200 group flex items-center gap-1 z-[60] cursor-pointer outline-none"
-        >
-            <span className="text-[10px] uppercase tracking-wider opacity-0 group-hover:opacity-100 transition-opacity">Close</span>
-            <X size={20} />
-        </button>
+
 
         <h3 className="text-foreground/90">
             {isForgotPassword ? "Reset your password" : "Practice job interviews with AI"}

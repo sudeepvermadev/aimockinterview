@@ -21,20 +21,23 @@ const MainLayout = async ({ children, modal }: { children: React.ReactNode, moda
           <div className="flex items-center gap-6">
             {/* Logo */}
             <Link href="/" className="flex items-center gap-3 group">
-              <div className="p-1 bg-white/10 rounded-xl transition-all duration-300 group-hover:bg-blue-500/20">
-                <Image
-                  src="/logonew.png"
-                  alt="logo"
-                  height={30}
-                  width={26}
-                  style={{ height: "auto", width: "auto" }}
-                  className="p-1 bg-gray-50 rounded-xl transition-all duration-300 group-hover:bg-blue-50 group-hover:-translate-y-0.5"
-                />
+              <div className="p-1.5 bg-blue-500/5 dark:bg-white/5 rounded-2xl transition-all duration-500 group-hover:bg-blue-500/10 border border-transparent group-hover:border-blue-500/20">
+                <div className="relative animate-float">
+                  <Image
+                    src="/logonew.png"
+                    alt="logo"
+                    height={32}
+                    width={28}
+                    style={{ height: "auto", width: "auto" }}
+                    className="p-1 rounded-xl transition-all duration-500 group-hover:scale-110 drop-shadow-sm group-hover:drop-shadow-md"
+                  />
+                </div>
               </div>
               <span className="text-[var(--text-primary)] font-bold text-2xl tracking-tight">
                 Prep<span className="bg-gradient-to-r from-blue-400 to-indigo-500 bg-clip-text text-transparent">Edge</span>
               </span>
             </Link>
+
 
           </div>
 

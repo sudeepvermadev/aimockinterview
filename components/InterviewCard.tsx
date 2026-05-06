@@ -106,9 +106,14 @@ export default function InterviewCard({
         </span>
         <div className="flex gap-2">
           {isCompleted && (
-            <span className="flex items-center gap-1 bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 px-2 py-0.5 rounded-md text-[9px] font-bold uppercase">
-              <CheckCircle2 className="w-2.5 h-2.5" /> Done
-            </span>
+            <>
+              <span className="flex items-center gap-1 bg-blue-500/10 text-blue-400 border border-blue-500/20 px-2 py-0.5 rounded-md text-[9px] font-bold uppercase">
+                Score: {feedback?.totalScore || "—"}
+              </span>
+              <span className="flex items-center gap-1 bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 px-2 py-0.5 rounded-md text-[9px] font-bold uppercase">
+                <CheckCircle2 className="w-2.5 h-2.5" /> Done
+              </span>
+            </>
           )}
           <span
             className={cn(

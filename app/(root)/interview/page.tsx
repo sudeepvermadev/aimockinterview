@@ -21,14 +21,14 @@ const Page = async ({ searchParams }: { searchParams: Promise<{ role?: string; t
   return (
     <div className="min-h-screen">
       {/* Role-aware hero banner */}
-      <div className="relative overflow-hidden border-b border-[var(--border-subtle)] bg-[#07070f]">
+      <div className="relative overflow-hidden border-b border-[var(--border-subtle)] bg-[var(--interview-banner)]">
         <div className="absolute inset-0 bg-gradient-to-r from-blue-600/10 via-transparent to-indigo-600/10 pointer-events-none" />
         <div className="relative max-w-7xl mx-auto px-4 md:px-6 py-6 md:py-10">
           {/* Breadcrumb */}
           <nav className="flex items-center gap-2 text-sm text-[var(--text-secondary)] mb-6 font-medium">
-            <Link href="/" className="hover:text-white/80 transition-colors text-white/60">Dashboard</Link>
-            <ChevronRight className="w-3 h-3 text-white/40" />
-            <span className="text-white/60">
+            <Link href="/" className="hover:text-[var(--text-primary)] transition-colors text-[var(--text-secondary)]">Dashboard</Link>
+            <ChevronRight className="w-3 h-3 text-[var(--text-muted)]" />
+            <span className="text-[var(--text-secondary)]">
               {role ? `${role} Interview` : "New Interview"}
             </span>
           </nav>
@@ -42,7 +42,7 @@ const Page = async ({ searchParams }: { searchParams: Promise<{ role?: string; t
 
               <div>
                 <div className="flex items-center gap-3 mb-1">
-                  <h1 className="text-2xl md:text-3xl font-extrabold text-white tracking-tight">
+                  <h1 className="text-2xl md:text-3xl font-extrabold text-[var(--text-primary)] tracking-tight">
                     {role ? `${role} Interview` : "Interview Generation"}
                   </h1>
                   {type && (
@@ -55,13 +55,13 @@ const Page = async ({ searchParams }: { searchParams: Promise<{ role?: string; t
                   )}
                 </div>
                 {meta?.description && (
-                  <p className="text-white/60 text-sm">{meta.description}</p>
+                  <p className="text-[var(--text-secondary)] text-sm">{meta.description}</p>
                 )}
               </div>
             </div>
 
             {/* Tips chip */}
-            <div className="hidden sm:flex items-center gap-2 px-4 py-2.5 bg-blue-500/10 border border-blue-500/20 rounded-2xl text-blue-300 text-sm font-medium">
+            <div className="hidden sm:flex items-center gap-2 px-4 py-2.5 bg-blue-500/10 border border-blue-500/20 rounded-2xl text-blue-600 dark:text-blue-300 text-sm font-medium">
               <Mic className="w-4 h-4 flex-shrink-0" />
               Speak naturally — Alex will guide you
             </div>
@@ -76,6 +76,7 @@ const Page = async ({ searchParams }: { searchParams: Promise<{ role?: string; t
           userId={user?.id}
           type={agentType}
           role={agentRole}
+          userPhotoUrl={(user as any).photoURL}
         />
       </div>
     </div>

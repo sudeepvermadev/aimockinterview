@@ -2,7 +2,7 @@
 
 import { adminAuth, adminDb } from "@/firebase/admin";
 import { cookies } from "next/headers";
-import { sendWelcomeEmail } from "@/lib/email";
+import { sendWelcomeEmail, sendGoodbyeEmail } from "@/lib/email";
 import { createNotification } from "./notifications.action";
 
 const SESSION_DURATION = 60 * 60 * 24 * 7; // 1 week
@@ -26,7 +26,7 @@ export async function signUp(params: { uid: string; name: string; email: string 
       userId: params.uid,
       type: "welcome",
       title: "Welcome to PrepEdge! 🎉",
-      message: `Hi ${params.name}, welcome aboard! Start your AI-powered mock interview journey and build the confidence to land your dream job.`,
+      message: `Hi ${params.name}, welcome aboard! Visit https://luca-subhyoidean-governmentally.ngrok-free.dev to start your AI-powered mock interview journey and build confidence.`,
     }).catch(e => console.error("Notification create failed:", e));
 
     return { success: true, message: "Account created successfully!" };
@@ -99,6 +99,14 @@ export async function getCurrentUser() {
       // Send Welcome Email for First-Time Social Login
       if (authUser.email) {
         sendWelcomeEmail(authUser.email, guestName).catch(e => console.error("Email send failed:", e));
+        
+        // Also create welcome notification
+        createNotification({
+          userId: decodedClaims.uid,
+          type: "welcome",
+          title: "Welcome to PrepEdge! 🎉",
+          message: `Hi ${guestName}, welcome aboard! Visit https://luca-subhyoidean-governmentally.ngrok-free.dev to start your AI-powered mock interview journey and build confidence.`,
+        }).catch(e => console.error("Notification create failed:", e));
       }
 
       return {
@@ -178,6 +186,14 @@ export async function updateUserPhoto(userId: string, photoUrl: string) {
 
 export async function deleteUserAccount(userId: string) {
   try {
+    const userSnapshot = await adminDb.collection("users").doc(userId).get();
+    const userData = userSnapshot.data();
+
+    // Send Goodbye Email before deletion
+    if (userData?.email) {
+      sendGoodbyeEmail(userData.email, userData.name || "User").catch(e => console.error("Goodbye email failed:", e));
+    }
+
     const batch = adminDb.batch();
 
     // 1. Delete user document

@@ -34,27 +34,29 @@ export default function AuthModal({ children }: { children: React.ReactNode }) {
     return () => document.removeEventListener("keydown", onKeyDown);
   }, [onKeyDown]);
 
-  // Note: We are NOT disabling body scroll here because the user specifically asked for "also scroll"
-  
   return (
     <div
       ref={overlay}
-      className="fixed inset-0 z-[100] flex items-center justify-center bg-black/30 backdrop-blur-md animate-in fade-in duration-300"
+      className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/80 backdrop-blur-md animate-in fade-in duration-500 p-2 sm:p-4"
       onClick={onClick}
     >
       <div 
         ref={wrapper}
-        className="relative w-full max-w-xl mx-auto p-4 animate-in zoom-in-95 slide-in-from-bottom-5 duration-300"
+        className="relative w-full max-w-xl mx-auto animate-in zoom-in-95 slide-in-from-bottom-10 duration-500 ease-out"
       >
-        <button
-          onClick={onDismiss}
-          className="absolute top-8 right-8 z-[110] p-2 rounded-full bg-white/10 hover:bg-white/20 text-white border border-white/20 transition-all active:scale-95 shadow-xl md:hidden"
-        >
-          <X size={20} />
-        </button>
-        
-        {children}
+        <div className="bg-[var(--surface-card)] rounded-[2.5rem] border-2 border-[var(--border-primary)] shadow-[0_32px_64px_-12px_rgba(0,0,0,0.5)] overflow-hidden relative">
+          {/* Internal Close Button - Better for Laptop Screens */}
+          <button
+            onClick={onDismiss}
+            className="absolute top-6 right-6 p-2 rounded-xl bg-[var(--surface-base)] hover:bg-[var(--surface-card-alt)] text-[var(--text-secondary)] hover:text-[var(--text-primary)] border border-[var(--border-subtle)] transition-all active:scale-90 hover:rotate-90 group z-[100]"
+          >
+            <X size={20} className="group-hover:scale-110 transition-transform" />
+          </button>
+
+          {children}
+        </div>
       </div>
     </div>
+
   );
 }

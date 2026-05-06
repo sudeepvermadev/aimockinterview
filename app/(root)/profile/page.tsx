@@ -1,6 +1,7 @@
 import React from "react";
 import { getCurrentUser } from "@/lib/actions/auth.action";
-import { getInterviewsByUserId } from "@/lib/actions/general.action";
+import { getInterviewsByUserId, getUserAnalytics } from "@/lib/actions/general.action";
+
 import { redirect } from "next/navigation";
 import Link from "next/link";
 import {
@@ -11,6 +12,7 @@ import ThemeToggle from "@/components/ThemeToggle";
 import { BADGES } from "@/constants/achievements";
 import BadgeCard from "@/components/BadgeCard";
 import ProfileAvatar from "@/components/ProfileAvatar";
+import ShareProfile from "@/components/ShareProfile";
 
 export default async function ProfilePage() {
   const user = await getCurrentUser();
@@ -20,6 +22,7 @@ export default async function ProfilePage() {
   const interviews = await getInterviewsByUserId(user.id) || [];
   const totalInterviews = interviews.length;
   const completedInterviews = interviews.filter((i: any) => i.finalized).length;
+  const analytics = await getUserAnalytics(user.id);
 
   const userInitial = (user as any).name?.charAt(0).toUpperCase()
     || (user as any).email?.charAt(0).toUpperCase()
@@ -47,19 +50,38 @@ export default async function ProfilePage() {
         <div className="absolute bottom-[20%] right-[-10%] w-[30%] h-[30%] bg-purple-600/10 blur-[120px] rounded-full" />
       </div>
 
-      {/* Top nav */}
-      <nav className="relative z-10 max-w-5xl mx-auto px-6 pt-8 pb-4 flex items-center justify-between">
+      <nav className="relative z-50 max-w-5xl mx-auto px-6 pt-8 pb-4 flex flex-wrap items-center justify-between gap-4">
         <Link
           href="/"
-          className="flex items-center gap-2 text-[var(--text-secondary)] hover:text-white transition-colors group font-medium"
+          className="flex items-center gap-2 text-[var(--text-secondary)] hover:text-[var(--text-primary)] transition-colors group font-medium shrink-0"
         >
           <ArrowLeft className="w-4 h-4 group-hover:-translate-x-1 transition-transform" />
-          Back to Dashboard
+          <span className="hidden sm:inline">Back to Dashboard</span>
+          <span className="sm:hidden">Back</span>
         </Link>
-        <div className="px-4 py-1.5 rounded-full bg-blue-500/10 border border-blue-500/20 text-blue-400 text-xs font-bold uppercase tracking-wider">
-          Profile
+        
+        <div className="flex items-center gap-2 sm:gap-4 ml-auto">
+
+          <ShareProfile 
+            user={{
+              name: displayName,
+              email: (user as any).email,
+              photoURL: (user as any).photoURL,
+              streakCount: (user as any).streakCount || 0,
+              initial: userInitial
+            }} 
+            stats={{
+              totalInterviews,
+              averageScore: analytics?.averageScore || 0,
+              badgeCount: (user as any).badges?.length || 0
+            }}
+          />
+          <div className="px-4 py-1.5 rounded-full bg-blue-500/10 border border-blue-500/20 text-blue-600 dark:text-blue-400 text-xs font-bold uppercase tracking-wider">
+            Profile
+          </div>
         </div>
       </nav>
+
 
       <div className="relative z-10 max-w-5xl mx-auto px-6 mt-4 space-y-6">
 
@@ -81,8 +103,8 @@ export default async function ProfilePage() {
             </h1>
             <p className="text-blue-400 text-base font-medium mb-6">PrepEdge Candidate</p>
 
-            <div className="flex flex-wrap gap-3 justify-center md:justify-start">
-              <div className="flex items-center gap-2 px-4 py-2 rounded-xl bg-white/5 border border-[var(--border-subtle)] text-sm font-medium text-[var(--text-secondary)]">
+            <div className="flex flex-wrap gap-3 justify-center md:justify-start items-center">
+              <div className="flex items-center gap-2 px-4 py-2 rounded-xl bg-[var(--surface-base)] border border-[var(--border-subtle)] text-sm font-medium text-[var(--text-secondary)]">
                 <Mail className="w-4 h-4 text-[var(--text-secondary)]" />
                 {(user as any).email}
               </div>
@@ -90,13 +112,14 @@ export default async function ProfilePage() {
                 <Shield className="w-4 h-4" />
                 Verified Account
               </div>
-              <div className="flex items-center gap-2 px-4 py-2 rounded-xl bg-white/5 border border-[var(--border-subtle)] text-sm font-medium text-[var(--text-secondary)]">
+              <div className="flex items-center gap-2 px-4 py-2 rounded-xl bg-[var(--surface-base)] border border-[var(--border-subtle)] text-sm font-medium text-[var(--text-secondary)]">
                 <Calendar className="w-4 h-4 text-[var(--text-secondary)]" />
                 Member since {memberSince}
               </div>
+              </div>
             </div>
           </div>
-        </div>
+
 
         {/* ── Stats Row ───────────────────────────────────── */}
         <div className="grid grid-cols-3 gap-4">
@@ -114,7 +137,7 @@ export default async function ProfilePage() {
 
           {/* Personal Info & Settings */}
           <div className="space-y-6 lg:col-span-1">
-            <div className="bg-[var(--surface-card)] border border-[var(--border-subtle)] rounded-[2rem] p-8 hover:border-white/10 transition-colors">
+            <div className="bg-[var(--surface-card)] border border-[var(--border-subtle)] rounded-[2rem] p-8 hover:border-[var(--border-primary)] transition-colors">
               <div className="flex items-center gap-4 mb-6">
                 <div className="p-3 bg-blue-500/10 rounded-2xl">
                   <UserIcon className="w-6 h-6 text-blue-400" />
@@ -128,15 +151,15 @@ export default async function ProfilePage() {
                   { label: "Member Since",   value: memberSince },
                 ].map(({ label, value }) => (
                   <div key={label}>
-                    <span className="text-[10px] text-[var(--text-secondary)] font-bold uppercase tracking-wider">{label}</span>
-                    <p className="text-gray-600 font-medium mt-0.5">{value}</p>
-                    <div className="h-px w-full bg-white/5 mt-3" />
+                    <span className="text-[10px] text-[var(--text-muted)] font-bold uppercase tracking-wider">{label}</span>
+                    <p className="text-[var(--text-secondary)] font-medium mt-0.5">{value}</p>
+                    <div className="h-px w-full bg-[var(--border-subtle)] mt-3" />
                   </div>
                 ))}
               </div>
             </div>
 
-            <div className="bg-[var(--surface-card)] border border-[var(--border-subtle)] rounded-[2rem] p-8 hover:border-white/10 transition-colors">
+            <div className="bg-[var(--surface-card)] border border-[var(--border-subtle)] rounded-[2rem] p-8 hover:border-[var(--border-primary)] transition-colors">
               <div className="flex items-center gap-4 mb-6">
                 <div className="p-3 bg-slate-500/10 rounded-2xl">
                   <Settings2 className="w-6 h-6 text-[var(--text-secondary)]" />
@@ -145,7 +168,7 @@ export default async function ProfilePage() {
               </div>
               
               <div className="space-y-6">
-                <Link href="/notifications" className="flex items-center justify-between group hover:bg-white/[0.03] -mx-3 px-3 py-2 rounded-xl transition-all">
+                <Link href="/notifications" className="flex items-center justify-between group hover:bg-[var(--surface-base)] -mx-3 px-3 py-2 rounded-xl transition-all">
                   <div>
                     <h3 className="text-[var(--text-primary)] font-medium text-base group-hover:text-blue-400 transition-colors">Notifications</h3>
                     <p className="text-[10px] text-[var(--text-secondary)] mt-0.5">
@@ -159,7 +182,7 @@ export default async function ProfilePage() {
                   </div>
                 </Link>
 
-                <div className="h-px w-full bg-white/5" />
+                <div className="h-px w-full bg-[var(--border-subtle)]" />
 
                 <div className="flex items-center justify-between">
                   <div>
@@ -177,7 +200,7 @@ export default async function ProfilePage() {
           {/* Achievements & Activity */}
           <div className="lg:col-span-2 space-y-6">
              {/* ── ACHIEVEMENTS ── */}
-             <div className="bg-[var(--surface-card)] border border-[var(--border-subtle)] rounded-[2rem] p-8 hover:border-white/10 transition-colors">
+             <div className="bg-[var(--surface-card)] border border-[var(--border-subtle)] rounded-[2rem] p-8 hover:border-[var(--border-primary)] transition-colors">
                 <div className="flex items-center justify-between mb-8">
                   <div className="flex items-center gap-4">
                     <div className="p-3 bg-yellow-500/10 rounded-2xl">
@@ -204,7 +227,7 @@ export default async function ProfilePage() {
              </div>
 
             {/* Activity Overview */}
-            <div className="bg-[var(--surface-card)] border border-[var(--border-subtle)] rounded-[2rem] p-8 hover:border-white/10 transition-colors">
+            <div className="bg-[var(--surface-card)] border border-[var(--border-subtle)] rounded-[2rem] p-8 hover:border-[var(--border-primary)] transition-colors">
               <div className="flex items-center gap-4 mb-6">
                 <div className="p-3 bg-purple-500/10 rounded-2xl">
                   <Activity className="w-6 h-6 text-purple-400" />
@@ -231,19 +254,19 @@ export default async function ProfilePage() {
                   </Link>
                 </div>
               ) : (
-                <div className="flex flex-col items-center justify-center py-10 text-center bg-white/[0.02] border border-dashed border-white/10 rounded-2xl">
-                  <Mic className="w-8 h-8 text-gray-600 mb-3" />
+                <div className="flex flex-col items-center justify-center py-10 text-center bg-[var(--empty-state-bg)] border border-dashed border-[var(--border-subtle)] rounded-2xl">
+                  <Mic className="w-8 h-8 text-[var(--text-muted)] mb-3" />
                   <p className="text-[var(--text-secondary)] font-medium mb-3">No interviews yet.</p>
                   <Link href="/interview" className="text-blue-400 hover:text-blue-300 font-semibold text-sm">
                     Start your first one →
                   </Link>
                 </div>
               )}
-            </div>
           </div>
         </div>
-
       </div>
+    </div>
+
     </main>
   );
 }

@@ -5,7 +5,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import { 
     Bell, BellOff, Check, CheckCheck, Trash2, Calendar, 
     Mail, Award, AlertCircle, Clock, Sparkles, Filter,
-    ChevronDown
+    ChevronDown, AlertTriangle
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { 
@@ -34,6 +34,7 @@ const NOTIFICATION_ICONS: Record<string, { icon: any; color: string; bg: string 
     schedule_confirmed: { icon: Calendar, color: "text-blue-400", bg: "bg-blue-500/10" },
     reminder_sent: { icon: Bell, color: "text-orange-400", bg: "bg-orange-500/10" },
     interview_completed: { icon: Award, color: "text-emerald-400", bg: "bg-emerald-500/10" },
+    missed_interview: { icon: AlertTriangle, color: "text-red-400", bg: "bg-red-500/10" },
     streak_milestone: { icon: Award, color: "text-yellow-400", bg: "bg-yellow-500/10" },
     system: { icon: AlertCircle, color: "text-gray-400", bg: "bg-gray-500/10" },
 };
@@ -43,6 +44,8 @@ const FILTER_OPTIONS = [
     { label: "Unread", value: "unread" },
     { label: "Schedules", value: "schedule_confirmed" },
     { label: "Reminders", value: "reminder_sent" },
+    { label: "Missed", value: "missed_interview" },
+    { label: "Completed", value: "interview_completed" },
     { label: "Welcome", value: "welcome" },
 ];
 
@@ -56,7 +59,6 @@ export default function NotificationsClient({
     const [notifications, setNotifications] = useState<Notification[]>(initialNotifications);
     const [unreadCount, setUnreadCount] = useState(initialUnreadCount);
     const [filter, setFilter] = useState("all");
-    const [showFilters, setShowFilters] = useState(false);
     const [loadingId, setLoadingId] = useState<string | null>(null);
 
     const filteredNotifications = notifications.filter((n) => {
@@ -117,73 +119,78 @@ export default function NotificationsClient({
     };
 
     return (
-        <div className="space-y-6">
+        <div className="space-y-8">
             {/* Stats Bar */}
-            <div className="grid grid-cols-3 gap-4">
-                <div className="bg-white dark:bg-white/[0.03] border border-gray-200 dark:border-white/10 rounded-[24px] p-5 text-center backdrop-blur-xl shadow-sm dark:shadow-none">
-                    <p className="text-3xl font-black text-gray-900 dark:text-white">{notifications.length}</p>
-                    <p className="text-[10px] font-black uppercase tracking-widest text-gray-500 dark:text-gray-400 mt-1">Total</p>
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                <div className="bg-[var(--surface-card)] border border-[var(--border-primary)] rounded-[32px] p-6 text-center backdrop-blur-xl shadow-sm dark:shadow-none transition-transform hover:scale-[1.02]">
+                    <p className="text-4xl font-black text-[var(--text-primary)] leading-none">{notifications.length}</p>
+                    <p className="text-[10px] font-black uppercase tracking-widest text-[var(--text-secondary)] mt-2">Total Notifications</p>
                 </div>
-                <div className="bg-white dark:bg-white/[0.03] border border-gray-200 dark:border-white/10 rounded-[24px] p-5 text-center backdrop-blur-xl shadow-sm dark:shadow-none">
-                    <p className="text-3xl font-black text-orange-600 dark:text-orange-500">{unreadCount}</p>
-                    <p className="text-[10px] font-black uppercase tracking-widest text-gray-500 dark:text-gray-400 mt-1">Unread</p>
+                <div className="bg-[var(--surface-card)] border border-[var(--border-primary)] rounded-[32px] p-6 text-center backdrop-blur-xl shadow-sm dark:shadow-none transition-transform hover:scale-[1.02]">
+                    <p className="text-4xl font-black text-orange-600 dark:text-orange-500 leading-none">{unreadCount}</p>
+                    <p className="text-[10px] font-black uppercase tracking-widest text-[var(--text-secondary)] mt-2">Unread Messages</p>
                 </div>
-                <div className="bg-white dark:bg-white/[0.03] border border-gray-200 dark:border-white/10 rounded-[24px] p-5 text-center backdrop-blur-xl shadow-sm dark:shadow-none">
-                    <p className="text-3xl font-black text-emerald-600 dark:text-emerald-500">{notifications.length - unreadCount}</p>
-                    <p className="text-[10px] font-black uppercase tracking-widest text-gray-500 dark:text-gray-400 mt-1">Read</p>
+                <div className="bg-[var(--surface-card)] border border-[var(--border-primary)] rounded-[32px] p-6 text-center backdrop-blur-xl shadow-sm dark:shadow-none transition-transform hover:scale-[1.02]">
+                    <p className="text-4xl font-black text-emerald-600 dark:text-emerald-500 leading-none">{notifications.length - unreadCount}</p>
+                    <p className="text-[10px] font-black uppercase tracking-widest text-[var(--text-secondary)] mt-2">Read Sessions</p>
                 </div>
             </div>
 
             {/* Action Bar */}
-            <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 bg-white dark:bg-white/[0.03] backdrop-blur-3xl border border-gray-200 dark:border-white/10 p-4 rounded-[24px] shadow-sm dark:shadow-none">
-                <div className="flex items-center gap-3">
-                    <div className="relative">
-                        <button
-                            onClick={() => setShowFilters(!showFilters)}
-                            className="flex items-center gap-2 px-4 py-2.5 bg-gray-50 dark:bg-white/5 border border-gray-200 dark:border-white/10 rounded-xl text-sm font-bold text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-white/10 transition-all"
-                        >
+            <div className="bg-[var(--surface-card)] backdrop-blur-3xl border border-[var(--border-primary)] p-4 sm:p-5 rounded-[32px] shadow-sm dark:shadow-none overflow-hidden">
+                <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-6">
+                    <div className="flex-1 min-w-0 flex items-center gap-4">
+                        <div className="flex items-center gap-2 text-[var(--text-muted)] whitespace-nowrap">
                             <Filter size={14} />
-                            {FILTER_OPTIONS.find(f => f.value === filter)?.label || "All"}
-                            <ChevronDown size={14} className={cn("transition-transform", showFilters && "rotate-180")} />
-                        </button>
+                            <span className="text-[10px] font-black uppercase tracking-[0.2em]">Filter</span>
+                        </div>
                         
-                        <AnimatePresence>
-                            {showFilters && (
-                                <motion.div
-                                    initial={{ opacity: 0, y: -5, scale: 0.95 }}
-                                    animate={{ opacity: 1, y: 0, scale: 1 }}
-                                    exit={{ opacity: 0, y: -5, scale: 0.95 }}
-                                    className="absolute top-full left-0 mt-2 w-48 bg-white dark:bg-[#0d0d12]/95 border border-gray-200 dark:border-white/10 rounded-2xl shadow-2xl backdrop-blur-3xl z-50 overflow-hidden"
-                                >
-                                    {FILTER_OPTIONS.map((opt) => (
-                                        <button
-                                            key={opt.value}
-                                            onClick={() => { setFilter(opt.value); setShowFilters(false); }}
-                                            className={cn(
-                                                "w-full text-left px-4 py-3 text-sm font-medium transition-all",
-                                                filter === opt.value 
-                                                    ? "bg-blue-500/10 text-blue-600 dark:text-blue-400" 
-                                                    : "text-gray-600 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-white/5 hover:text-gray-900 dark:hover:text-white"
-                                            )}
-                                        >
-                                            {opt.label}
-                                        </button>
-                                    ))}
-                                </motion.div>
-                            )}
-                        </AnimatePresence>
+                        {/* Scrollable Container with Fade Mask */}
+                        <div className="relative flex-1 min-w-0 overflow-hidden">
+                            <div className="flex items-center gap-2 overflow-x-auto no-scrollbar pb-2 sm:pb-0 scroll-smooth">
+                                {FILTER_OPTIONS.map((opt) => (
+                                    <button
+                                        key={opt.value}
+                                        onClick={() => setFilter(opt.value)}
+                                        className={cn(
+                                            "relative px-6 py-3 rounded-2xl text-[11px] font-black uppercase tracking-widest transition-all whitespace-nowrap active:scale-95 group",
+                                            filter === opt.value 
+                                                ? "text-white" 
+                                                : "text-[var(--text-secondary)] hover:text-[var(--text-primary)]"
+                                        )}
+                                    >
+                                        <span className="relative z-10">{opt.label}</span>
+                                        {filter === opt.value ? (
+                                            <motion.div
+                                                layoutId="activeFilter"
+                                                className="absolute inset-0 bg-blue-600 rounded-2xl shadow-lg shadow-blue-500/30"
+                                                transition={{ type: "spring", bounce: 0.2, duration: 0.6 }}
+                                            />
+                                        ) : (
+                                            <div className="absolute inset-0 bg-[var(--surface-base)] rounded-2xl opacity-0 group-hover:opacity-100 transition-opacity" />
+                                        )}
+                                    </button>
+                                ))}
+                                {/* Buffer for the right fade */}
+                                <div className="min-w-[20px] h-1" />
+                            </div>
+                            {/* Inner Fades */}
+                            <div className="absolute right-0 top-0 bottom-0 w-8 bg-gradient-to-l from-[var(--surface-card)] to-transparent pointer-events-none hidden sm:block" />
+                        </div>
                     </div>
-                </div>
 
-                {unreadCount > 0 && (
-                    <button
-                        onClick={handleMarkAllRead}
-                        className="flex items-center gap-2 px-5 py-2.5 bg-blue-600 dark:bg-blue-500/10 border border-transparent dark:border-blue-500/20 rounded-xl text-sm font-bold text-white dark:text-blue-400 hover:bg-blue-700 dark:hover:bg-blue-500/20 transition-all active:scale-95 shadow-md shadow-blue-500/20 dark:shadow-none"
-                    >
-                        <CheckCheck size={16} />
-                        Mark All as Read
-                    </button>
-                )}
+                    {unreadCount > 0 && (
+                        <div className="flex-shrink-0">
+                            <button
+                                onClick={handleMarkAllRead}
+                                className="w-full sm:w-auto flex items-center justify-center gap-2 px-6 py-3 bg-blue-600/10 border border-blue-500/20 rounded-2xl text-[11px] font-black uppercase tracking-widest text-blue-600 dark:text-blue-400 hover:bg-blue-600 hover:text-white transition-all active:scale-95 whitespace-nowrap shadow-sm shadow-blue-500/5"
+                            >
+                                <CheckCheck size={16} />
+                                Mark All Read
+                            </button>
+                        </div>
+                    )}
+                </div>
             </div>
 
             {/* Notifications List */}
@@ -193,13 +200,13 @@ export default function NotificationsClient({
                         <motion.div
                             initial={{ opacity: 0, y: 20 }}
                             animate={{ opacity: 1, y: 0 }}
-                            className="text-center py-20 bg-white dark:bg-white/[0.02] border border-gray-200 dark:border-white/10 rounded-[32px] backdrop-blur-xl shadow-sm dark:shadow-none"
+                            className="text-center py-20 bg-[var(--surface-card)] border border-[var(--border-primary)] rounded-[32px] backdrop-blur-xl shadow-sm dark:shadow-none"
                         >
-                            <BellOff className="mx-auto h-12 w-12 text-gray-300 dark:text-white/15 mb-4" />
-                            <h3 className="text-lg font-bold text-gray-900 dark:text-white/40 mb-2">
+                            <BellOff className="mx-auto h-12 w-12 text-[var(--text-muted)] opacity-20 mb-4" />
+                            <h3 className="text-lg font-bold text-[var(--text-primary)] opacity-40 mb-2">
                                 {filter === "unread" ? "All caught up!" : "No notifications yet"}
                             </h3>
-                            <p className="text-sm text-gray-500 dark:text-white/20 font-medium max-w-sm mx-auto">
+                            <p className="text-sm text-[var(--text-secondary)] font-medium max-w-sm mx-auto">
                                 {filter === "unread" 
                                     ? "You've read all your notifications. Great job staying on top of things!" 
                                     : "When you schedule interviews or receive reminders, they'll appear here."
@@ -220,10 +227,10 @@ export default function NotificationsClient({
                                     exit={{ opacity: 0, x: -100, scale: 0.9 }}
                                     transition={{ delay: index * 0.03 }}
                                     className={cn(
-                                        "group relative bg-white dark:bg-white/[0.02] border rounded-[24px] p-6 backdrop-blur-xl transition-all duration-300 hover:shadow-lg",
+                                        "group relative bg-[var(--surface-card)] border rounded-[24px] p-6 backdrop-blur-xl transition-all duration-300 hover:shadow-lg",
                                         notification.read 
-                                            ? "border-gray-100 dark:border-white/5 opacity-70 hover:opacity-100" 
-                                            : "border-gray-200 dark:border-white/15 hover:border-gray-300 dark:hover:border-white/25 shadow-sm"
+                                            ? "border-[var(--border-subtle)] opacity-70 hover:opacity-100" 
+                                            : "border-[var(--border-primary)] hover:border-[var(--text-muted)] shadow-sm"
                                     )}
                                 >
                                     {/* Unread Indicator Bar */}
@@ -243,19 +250,19 @@ export default function NotificationsClient({
                                                 <h3 className={cn(
                                                     "text-base tracking-tight",
                                                     notification.read 
-                                                        ? "font-semibold text-gray-700 dark:text-gray-300" 
-                                                        : "font-bold text-gray-900 dark:text-white"
+                                                        ? "font-semibold text-[var(--text-secondary)]" 
+                                                        : "font-bold text-[var(--text-primary)]"
                                                 )}>
                                                     {notification.title.replace("✅", "")}
                                                 </h3>
                                                 <div className="flex items-center gap-2 flex-shrink-0">
-                                                    <span className="text-[10px] font-bold text-gray-400 dark:text-gray-500 uppercase tracking-wider whitespace-nowrap">
+                                                    <span className="text-[10px] font-bold text-[var(--text-muted)] uppercase tracking-wider whitespace-nowrap">
                                                         {dayjs(notification.createdAt).fromNow()}
                                                     </span>
                                                 </div>
                                             </div>
 
-                                            <p className="text-sm text-gray-600 dark:text-gray-400 font-medium leading-relaxed mb-3">
+                                            <p className="text-sm text-[var(--text-secondary)] font-medium leading-relaxed mb-3">
                                                 {notification.message}
                                             </p>
 
@@ -292,7 +299,7 @@ export default function NotificationsClient({
                                                 <button
                                                     onClick={() => handleDelete(notification.id)}
                                                     disabled={isLoading}
-                                                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-gray-50 dark:bg-white/5 hover:bg-red-600 dark:hover:bg-red-500/10 text-[11px] font-bold text-gray-500 dark:text-gray-400 hover:text-white dark:hover:text-red-400 transition-all border border-gray-200 dark:border-transparent hover:border-red-600 dark:hover:border-red-500/10"
+                                                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-[var(--surface-base)] hover:bg-red-600 dark:hover:bg-red-500/10 text-[11px] font-bold text-[var(--text-secondary)] hover:text-white dark:hover:text-red-400 transition-all border border-[var(--border-subtle)] dark:border-transparent hover:border-red-600 dark:hover:border-red-500/10"
                                                 >
                                                     <Trash2 size={12} />
                                                     Delete
@@ -317,7 +324,7 @@ export default function NotificationsClient({
             {/* Bottom fade text */}
             {filteredNotifications.length > 0 && (
                 <div className="text-center pt-4 pb-8">
-                    <p className="text-[10px] font-black uppercase tracking-[0.3em] text-gray-400 dark:text-white/15">
+                    <p className="text-[10px] font-black uppercase tracking-[0.3em] text-[var(--text-muted)]">
                         {filteredNotifications.length} notification{filteredNotifications.length !== 1 ? 's' : ''} • PrepEdge
                     </p>
                 </div>
