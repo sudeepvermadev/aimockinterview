@@ -190,7 +190,15 @@ const UserMenu = () => {
               <span className="relative text-[7px] font-black text-white">{unreadCount > 9 ? '9+' : unreadCount}</span>
             </span>
           )}
+
+          {/* PRO Badge on Avatar (Restored for Navbar) */}
+          {userData?.isPro && (
+            <div className="absolute -bottom-0.5 -right-0.5 w-4 h-4 bg-gradient-to-tr from-amber-400 to-yellow-600 rounded-full flex items-center justify-center border-2 border-[var(--surface-base)] shadow-lg z-20">
+              <Sparkles className="w-2 h-2 text-white fill-white" />
+            </div>
+          )}
         </div>
+
 
         {/* Dropdown Arrow */}
         <ChevronRight className={cn(
@@ -271,13 +279,21 @@ const UserMenu = () => {
               </motion.div>
 
                 <motion.div variants={itemVariants} className="text-center w-full px-4">
-                  <p className="text-xl font-bold text-[var(--dropdown-text-hover)] tracking-tight truncate">
-                    {userData?.name || user.displayName || "User Account"}
-                  </p>
+                  <div className="flex items-center justify-center gap-2 mb-1">
+                    <p className="text-xl font-bold text-[var(--dropdown-text-hover)] tracking-tight truncate">
+                      {userData?.name || user.displayName || "User Account"}
+                    </p>
+                    {userData?.isPro && (
+                      <span className="px-2 py-0.5 bg-gradient-to-r from-amber-400 to-yellow-600 text-[9px] font-black text-white rounded-full uppercase tracking-widest shadow-lg shadow-amber-500/20 flex items-center gap-1">
+                        <Sparkles size={8} className="fill-white" /> PRO
+                      </span>
+                    )}
+                  </div>
                   <p className="text-sm text-[var(--dropdown-text)] font-medium truncate mt-0.5 mb-4">
                     {user.email}
                   </p>
                 </motion.div>
+
                 
                 <motion.div variants={itemVariants}>
                   <Link 
@@ -462,9 +478,15 @@ const UserMenu = () => {
                 </button>
             </motion.div>
             
-            <div className="pb-6 pt-2 text-center opacity-30 select-none">
-                <p className="text-[10px] text-[var(--dropdown-text)] uppercase tracking-[0.3em] font-black">PrepEdge Premium</p>
+            <div className="pb-6 pt-2 text-center select-none">
+                <p className={cn(
+                  "text-[10px] uppercase tracking-[0.3em] font-black",
+                  userData?.isPro ? "bg-gradient-to-r from-amber-400 to-yellow-600 bg-clip-text text-transparent animate-pulse" : "text-[var(--dropdown-text)] opacity-30"
+                )}>
+                  {userData?.isPro ? "PrepEdge Pro Member" : "PrepEdge Premium"}
+                </p>
             </div>
+
           </motion.div>
         )}
       </AnimatePresence>

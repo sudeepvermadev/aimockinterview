@@ -212,14 +212,16 @@ const AuthForm = ({ type }: { type: FormType }) => {
     },
   });
 
-  // Reset form when modal opens to ensure clean fields
+  // Reset form when modal opens or type changes to ensure clean fields
   useEffect(() => {
     form.reset({
       name: "",
       email: "",
       password: "",
     });
-  }, [form]);
+    setIsForgotPassword(false);
+  }, [type, form]);
+
 
 
   const handleResetPassword = async () => {
@@ -350,7 +352,9 @@ const AuthForm = ({ type }: { type: FormType }) => {
           <form
             onSubmit={form.handleSubmit(onSubmit)}
             className="w-full space-y-6 mt-4 form"
+            autoComplete="off"
           >
+
             {!isSignIn && !isForgotPassword && (
               <FormField
                 control={form.control}

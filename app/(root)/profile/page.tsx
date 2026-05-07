@@ -68,7 +68,8 @@ export default async function ProfilePage() {
               email: (user as any).email,
               photoURL: (user as any).photoURL,
               streakCount: (user as any).streakCount || 0,
-              initial: userInitial
+              initial: userInitial,
+              isPro: (user as any).isPro
             }} 
             stats={{
               totalInterviews,
@@ -94,13 +95,23 @@ export default async function ProfilePage() {
             userId={user.id} 
             initialPhotoUrl={(user as any).photoURL} 
             userInitial={userInitial} 
+            isPro={(user as any).isPro}
           />
+
 
           {/* Info */}
           <div className="flex flex-col items-center md:items-start text-center md:text-left flex-1 mt-2 z-10">
-            <h1 className="text-3xl md:text-4xl font-extrabold text-[var(--text-primary)] mb-1 tracking-tight">
-              {displayName}
-            </h1>
+            <div className="flex items-center gap-3 mb-1">
+              <h1 className="text-3xl md:text-4xl font-extrabold text-[var(--text-primary)] tracking-tight">
+                {displayName}
+              </h1>
+              {(user as any).isPro && (
+                <span className="px-3 py-1 bg-gradient-to-r from-amber-400 to-yellow-600 text-[10px] font-black text-white rounded-lg uppercase tracking-widest shadow-lg shadow-amber-500/20">
+                   PRO
+                </span>
+              )}
+            </div>
+
             <p className="text-blue-400 text-base font-medium mb-6">PrepEdge Candidate</p>
 
             <div className="flex flex-wrap gap-3 justify-center md:justify-start items-center">

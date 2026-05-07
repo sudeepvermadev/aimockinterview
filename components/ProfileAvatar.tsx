@@ -16,9 +16,12 @@ interface ProfileAvatarProps {
   userId: string;
   initialPhotoUrl?: string;
   userInitial: string;
+  isPro?: boolean;
 }
 
-const ProfileAvatar = ({ userId, initialPhotoUrl, userInitial }: ProfileAvatarProps) => {
+
+const ProfileAvatar = ({ userId, initialPhotoUrl, userInitial, isPro }: ProfileAvatarProps) => {
+
   const [photoUrl, setPhotoUrl] = useState(initialPhotoUrl || "/user-avatar.webp");
   const [uploading, setUploading] = useState(false);
   const [tempImage, setTempImage] = useState<string | null>(null);
@@ -107,8 +110,9 @@ const ProfileAvatar = ({ userId, initialPhotoUrl, userInitial }: ProfileAvatarPr
             className="object-cover transition-transform duration-500 group-hover:scale-110"
             unoptimized={photoUrl?.startsWith('blob:')}
           />
-          
         </div>
+
+
 
         {/* Floating Upload Button (Pencil Design) */}
         <button 

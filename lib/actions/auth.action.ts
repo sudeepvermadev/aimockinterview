@@ -237,3 +237,19 @@ export async function deleteUserAccount(userId: string) {
     return { success: false, message: error.message || "Failed to delete account." };
   }
 }
+
+export async function updateUserPlan(userId: string, plan: string) {
+  try {
+    const userRef = adminDb.collection("users").doc(userId);
+    await userRef.update({ 
+      isPro: plan === "Pro",
+      plan: plan,
+      planUpdatedAt: new Date().toISOString()
+    });
+    console.log(`💳 User ${userId} upgraded to ${plan}`);
+    return { success: true };
+  } catch (error) {
+    console.error("❌ Error updating user plan:", error);
+    return { success: false, error: "Failed to update subscription plan." };
+  }
+}

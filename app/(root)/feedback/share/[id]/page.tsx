@@ -167,8 +167,10 @@ export default function PublicFeedbackPage() {
                   email: publicUser.email,
                   photoURL: publicUser.photoURL,
                   streakCount: publicUser.streakCount,
-                  initial: publicUser.name.charAt(0)
+                  initial: publicUser.name.charAt(0),
+                  isPro: publicUser.isPro
                 }}
+
                 stats={{
                   totalInterviews: publicUser.analytics?.totalInterviews || 0,
                   averageScore: publicUser.analytics?.averageScore || 0,

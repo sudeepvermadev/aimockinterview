@@ -2,8 +2,14 @@
 
 import { Check, Zap, Star, Shield, Rocket } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { toast } from "sonner";
+import SimulatedPaymentModal from "@/components/SimulatedPaymentModal";
+import { auth } from "@/firebase/client";
+import { onAuthStateChanged, User } from "firebase/auth";
+import { updateUserPlan } from "@/lib/actions/auth.action";
+import { Sparkles, Trophy, CheckCircle2 } from "lucide-react";
+import { motion, AnimatePresence } from "framer-motion";
 
 const tiers = [
   {
@@ -53,16 +59,64 @@ const tiers = [
 
 export default function PricingPage() {
   const [loading, setLoading] = useState(false);
+  const [user, setUser] = useState<any>(null);
+  const [isPaymentModalOpen, setIsPaymentModalOpen] = useState(false);
+  const [selectedPlan, setSelectedPlan] = useState({ name: "", price: "" });
+  const [showCelebration, setShowCelebration] = useState(false);
 
-  const handleUpgrade = async () => {
+
+  useEffect(() => {
+    const unsubscribe = onAuthStateChanged(auth, async (currentUser) => {
+      if (currentUser) {
+        // Fetch extended user data from Firestore
+        const { getDoc, doc } = await import("firebase/firestore");
+        const { db } = await import("@/firebase/client");
+        const userDoc = await getDoc(doc(db, "users", currentUser.uid));
+        if (userDoc.exists()) {
+          setUser({ ...currentUser, ...userDoc.data() });
+        } else {
+          setUser(currentUser);
+        }
+      } else {
+        setUser(null);
+      }
+    });
+    return () => unsubscribe();
+  }, []);
+
+
+  const handleUpgrade = async (plan: any) => {
+    if (!user) {
+      toast.error("Please sign in to upgrade your plan.");
+      return;
+    }
+    setSelectedPlan({ name: plan.name, price: plan.price + (plan.period || "") });
+    setIsPaymentModalOpen(true);
+  };
+
+  const handlePaymentSuccess = async () => {
+    if (!user) return;
+    
     setLoading(true);
-    // This is where Stripe Checkout would be triggered
-    // For now, we simulate success for demonstration
-    setTimeout(() => {
-      toast.success("Redirecting to secure checkout...");
+    try {
+      const result = await updateUserPlan(user.uid, "Pro");
+      if (result.success) {
+        setIsPaymentModalOpen(false);
+        setShowCelebration(true);
+        
+        // Refresh page after celebration to reflect Pro status globally
+        setTimeout(() => {
+          window.location.reload();
+        }, 4000);
+      } else {
+        toast.error("Something went wrong. Please try again.");
+      }
+
+    } catch (error) {
+      toast.error("Failed to update plan.");
+    } finally {
       setLoading(false);
-      // In a real app: router.push(stripeCheckoutUrl)
-    }, 1500);
+    }
   };
 
   return (
@@ -103,12 +157,20 @@ export default function PricingPage() {
               )}
 
               <div className="mb-8">
-                <h3 className="text-2xl font-black text-[var(--text-primary)] mb-2">{tier.name}</h3>
+                <h3 className={`text-2xl font-black mb-2 ${tier.highlight ? "text-white" : "text-[var(--text-primary)]"}`}>
+                  {tier.name}
+                </h3>
                 <div className="flex items-baseline gap-1">
-                  <span className="text-5xl font-black text-[var(--text-primary)] tracking-tighter">{tier.price}</span>
-                  {tier.period && <span className="text-[var(--text-secondary)] font-bold">{tier.period}</span>}
+                  <span className={`text-5xl font-black tracking-tighter ${tier.highlight ? "text-white" : "text-[var(--text-primary)]"}`}>
+                    {tier.price}
+                  </span>
+                  {tier.period && (
+                    <span className={`font-bold ${tier.highlight ? "text-white/60" : "text-[var(--text-secondary)]"}`}>
+                      {tier.period}
+                    </span>
+                  )}
                 </div>
-                <p className="text-[var(--text-secondary)] text-sm mt-4 leading-relaxed font-medium">
+                <p className={`text-sm mt-4 leading-relaxed font-medium ${tier.highlight ? "text-white/70" : "text-[var(--text-secondary)]"}`}>
                   {tier.description}
                 </p>
               </div>
@@ -119,14 +181,16 @@ export default function PricingPage() {
                     <div className="shrink-0 w-5 h-5 rounded-full bg-blue-500/10 flex items-center justify-center">
                       <Check className="w-3 h-3 text-blue-400" />
                     </div>
-                    <span className="text-sm font-bold text-[var(--text-secondary)]">{feature}</span>
+                    <span className={`text-sm font-bold ${tier.highlight ? "text-white/80" : "text-[var(--text-secondary)]"}`}>
+                      {feature}
+                    </span>
                   </div>
                 ))}
               </div>
 
               <Button
-                onClick={tier.highlight ? handleUpgrade : undefined}
-                disabled={loading && tier.highlight}
+                onClick={tier.highlight ? () => handleUpgrade(tier) : undefined}
+                disabled={(loading && tier.highlight) || (tier.name === (user?.isPro ? "Pro" : "Free"))}
                 className={`w-full h-14 rounded-2xl font-black text-sm uppercase tracking-widest transition-all ${
                   tier.highlight 
                     ? "bg-blue-600 hover:bg-blue-500 text-white shadow-xl shadow-blue-500/20" 
@@ -136,9 +200,10 @@ export default function PricingPage() {
                 {loading && tier.highlight ? (
                   <span className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
                 ) : (
-                  tier.buttonText
+                   (user?.isPro && tier.name === "Pro") || (!user?.isPro && tier.name === "Free") ? "Current Plan" : tier.buttonText
                 )}
               </Button>
+
             </div>
           ))}
         </div>
@@ -163,9 +228,86 @@ export default function PricingPage() {
         </div>
 
       </div>
+
+      <SimulatedPaymentModal 
+        isOpen={isPaymentModalOpen}
+        onClose={() => setIsPaymentModalOpen(false)}
+        onSuccess={handlePaymentSuccess}
+        planName={selectedPlan.name}
+        amount={selectedPlan.price}
+      />
+
+      {/* CELEBRATION OVERLAY */}
+      <AnimatePresence>
+        {showCelebration && (
+          <motion.div 
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-[20000] flex items-center justify-center bg-blue-600/10 backdrop-blur-xl"
+          >
+             {/* Floating Sparkles */}
+             {[...Array(20)].map((_, i) => (
+               <motion.div
+                 key={i}
+                 initial={{ 
+                   x: 0, 
+                   y: 0, 
+                   opacity: 1,
+                   scale: 0 
+                 }}
+                 animate={{ 
+                   x: (Math.random() - 0.5) * 1000, 
+                   y: (Math.random() - 0.5) * 1000, 
+                   opacity: 0,
+                   scale: Math.random() * 2,
+                   rotate: Math.random() * 360
+                 }}
+                 transition={{ duration: 3, ease: "easeOut" }}
+                 className="absolute"
+               >
+                 <Sparkles className={`w-${Math.floor(Math.random() * 6) + 4} h-${Math.floor(Math.random() * 6) + 4} text-yellow-400 fill-yellow-400`} />
+               </motion.div>
+             ))}
+
+             <motion.div 
+               initial={{ scale: 0.5, opacity: 0, y: 50 }}
+               animate={{ scale: 1, opacity: 1, y: 0 }}
+               className="text-center space-y-8 p-12 rounded-[4rem] bg-white shadow-2xl relative"
+             >
+                <div className="relative inline-block">
+                  <div className="w-32 h-32 rounded-full bg-gradient-to-tr from-blue-600 to-indigo-600 flex items-center justify-center shadow-2xl">
+                    <Trophy className="w-16 h-16 text-white" />
+                  </div>
+                  <motion.div 
+                    animate={{ scale: [1, 1.2, 1], rotate: [0, 10, -10, 0] }}
+                    transition={{ repeat: Infinity, duration: 2 }}
+                    className="absolute -top-2 -right-2 w-12 h-12 bg-amber-400 rounded-full flex items-center justify-center border-4 border-white shadow-lg"
+                  >
+                    <CheckCircle2 className="w-6 h-6 text-white" />
+                  </motion.div>
+                </div>
+
+                <div className="space-y-4">
+                  <h2 className="text-5xl font-black text-slate-900 tracking-tight">You&apos;re a Pro!</h2>
+                  <p className="text-xl text-slate-600 font-medium max-w-sm mx-auto leading-relaxed">
+                    Welcome to the elite club of job hunters. Your premium features are now active.
+                  </p>
+                </div>
+
+                <div className="flex items-center justify-center gap-3 py-3 px-6 bg-blue-50 rounded-2xl border border-blue-100 mx-auto w-fit">
+                   <div className="w-2 h-2 rounded-full bg-blue-500 animate-pulse" />
+                   <span className="text-xs font-bold text-blue-600 uppercase tracking-widest">Activating Membership...</span>
+                </div>
+             </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div>
   );
 }
+
+
 
 function TrustItem({ icon, title, desc }: any) {
   return (

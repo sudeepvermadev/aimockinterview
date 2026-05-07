@@ -322,7 +322,14 @@ export default function FeedbackPage() {
                 </div>
             </div>
             <div className="flex flex-col md:items-end text-left md:text-right">
-                <p className="text-3xl font-black text-[var(--text-primary)] leading-none tracking-tight">{user?.name || "Candidate"}</p>
+                <div className="flex items-center gap-3 md:justify-end">
+                    <p className="text-3xl font-black text-[var(--text-primary)] leading-none tracking-tight">{user?.name || "Candidate"}</p>
+                    {user?.isPro && (
+                        <span className="px-3 py-1 bg-gradient-to-r from-amber-400 to-yellow-600 text-[10px] font-black text-white rounded-lg uppercase tracking-widest shadow-lg shadow-amber-500/20">
+                           PRO
+                        </span>
+                    )}
+                </div>
                 <div className="flex items-center gap-3 mt-4 text-[var(--text-muted)] text-xs font-bold uppercase tracking-widest">
                     <span>{role} Interview</span> <span className="w-1 h-1 bg-[var(--border-primary)] rounded-full" /> <span>{dayjs(createdAt).format("MMM DD, YYYY")}</span>
                 </div>

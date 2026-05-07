@@ -21,7 +21,9 @@ interface ShareSummaryCardProps {
     photoURL?: string;
     streakCount?: number;
     initial?: string;
+    isPro?: boolean;
   };
+
   stats: {
     totalInterviews: number;
     averageScore: number;
@@ -133,18 +135,28 @@ const ShareSummaryCard = ({ user, stats, className }: ShareSummaryCardProps) => 
             </div>
 
             {/* Level/Status Badge */}
-            <div className="absolute -bottom-2 left-1/2 -translate-x-1/2 px-3 py-1 rounded-full bg-[#4DA1A9] border-2 border-[#0A0A0A] text-[10px] font-black text-[#0A0A0A] shadow-lg">
-              PRO
-            </div>
+            {user.isPro && (
+              <div className="absolute -bottom-2 left-1/2 -translate-x-1/2 px-3 py-1 rounded-full bg-[#4DA1A9] border-2 border-[#0A0A0A] text-[10px] font-black text-[#0A0A0A] shadow-lg">
+                PRO
+              </div>
+            )}
           </div>
+
         </div>
       </div>
 
       {/* User Info Section */}
       <div className="mt-12 space-y-1">
-        <h3 className="text-2xl font-black uppercase tracking-tight text-white leading-none">
-          {user.name}
-        </h3>
+        <div className="flex items-center gap-3">
+          <h3 className="text-2xl font-black uppercase tracking-tight text-white leading-none">
+            {user.name}
+          </h3>
+          {user.isPro && (
+            <span className="px-2 py-0.5 bg-gradient-to-tr from-amber-400 to-yellow-600 rounded-md text-[8px] font-black text-white uppercase tracking-wider">
+              PRO
+            </span>
+          )}
+        </div>
         <p className="text-sm font-bold text-white/30 tracking-wide uppercase">
           {handle}
         </p>

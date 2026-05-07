@@ -49,8 +49,46 @@ const ReportTemplate = React.forwardRef<HTMLDivElement, ReportTemplateProps>(
           boxSizing: "border-box",
         }}
       >
+        {/* TOP SEAL / STAMP (CENTERED) */}
+        <div style={{ display: "flex", justifyContent: "center", marginBottom: "-30px", position: "relative", zIndex: 10 }}>
+          <div style={{ 
+            width: "120px", 
+            height: "120px", 
+            borderRadius: "50%", 
+            background: "white", 
+            padding: "5px",
+            boxShadow: "0 15px 35px rgba(0,0,0,0.1)",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            border: "1px solid #E2E8F0"
+          }}>
+            <div style={{ 
+              width: "100%", 
+              height: "100%", 
+              borderRadius: "50%", 
+              border: "2px solid #FFD700",
+              display: "flex",
+              flexDirection: "column",
+              alignItems: "center",
+              justifyContent: "center",
+              background: "radial-gradient(circle, #FFF 0%, #F8FAFC 100%)",
+              position: "relative"
+            }}>
+              {/* Wreath / Laurel Leaves (SVG Simulation) */}
+              <svg width="90" height="90" viewBox="0 0 100 100" style={{ position: "absolute", opacity: 0.8 }}>
+                <path d="M50 85 C20 85 10 60 10 30" fill="none" stroke="#FFD700" strokeWidth="2" />
+                <path d="M50 85 C80 85 90 60 90 30" fill="none" stroke="#FFD700" strokeWidth="2" />
+              </svg>
+              <div style={{ color: "#B8860B", fontSize: "18px", marginBottom: "-5px" }}>★</div>
+              <div style={{ fontSize: "10px", fontWeight: 900, color: "#B8860B", textTransform: "uppercase", letterSpacing: "1px" }}>Verified</div>
+              <div style={{ fontSize: "8px", fontWeight: 800, color: "#64748B", textTransform: "uppercase" }}>Assessment</div>
+            </div>
+          </div>
+        </div>
+
         {/* HEADER */}
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", borderBottom: `2px solid ${C.blue}`, paddingBottom: "30px", marginBottom: "40px" }}>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", borderBottom: `2px solid ${C.blue}`, paddingBottom: "30px", marginBottom: "40px", paddingTop: "20px" }}>
           <div style={{ display: "flex", alignItems: "center", gap: "20px" }}>
             <div style={{ padding: "12px", borderRadius: "16px", backgroundColor: C.cardAlt, border: `1px solid ${C.border}` }}>
               <img src="/logonew.png" alt="Logo" style={{ height: "50px", width: "45px", objectFit: "contain" }} crossOrigin="anonymous" />
@@ -60,11 +98,29 @@ const ReportTemplate = React.forwardRef<HTMLDivElement, ReportTemplateProps>(
               <div style={{ fontSize: "10px", fontWeight: 700, color: C.textMuted, textTransform: "uppercase", letterSpacing: "4px" }}>Intelligence Assessment</div>
             </div>
           </div>
-          <div style={{ textAlign: "right" }}>
-            <div style={{ fontSize: "20px", fontWeight: 900, color: C.textPrimary }}>{user?.name || "Candidate"}</div>
+
+          <div style={{ textAlign: "right", position: "relative" }}>
+            <div style={{ display: "flex", alignItems: "center", gap: "10px", justifyContent: "flex-end" }}>
+              <div style={{ fontSize: "20px", fontWeight: 900, color: C.textPrimary }}>{user?.name || "Candidate"}</div>
+              {user?.isPro && (
+                <span style={{ 
+                  padding: "4px 10px", 
+                  backgroundColor: "#FFD700", 
+                  color: "#B8860B", 
+                  fontSize: "10px", 
+                  fontWeight: 900, 
+                  borderRadius: "6px",
+                  textTransform: "uppercase",
+                  letterSpacing: "1px",
+                  border: "1px solid #B8860B"
+                }}>PRO</span>
+              )}
+            </div>
             <div style={{ fontSize: "12px", fontWeight: 700, color: C.blue }}>{role} Interview</div>
             <div style={{ fontSize: "11px", color: C.textMuted, marginTop: "4px" }}>{dayjs(createdAt).format("MMMM DD, YYYY")}</div>
           </div>
+
+
         </div>
 
         {/* PERFORMANCE SUMMARY */}
@@ -78,7 +134,7 @@ const ReportTemplate = React.forwardRef<HTMLDivElement, ReportTemplateProps>(
           </div>
           <div style={{ flex: 1, backgroundColor: C.card, borderRadius: "32px", padding: "30px", border: `1px solid ${C.border}`, textAlign: "center" }}>
              <div style={{ fontSize: "10px", fontWeight: 900, color: C.textMuted, textTransform: "uppercase", letterSpacing: "3px", marginBottom: "15px" }}>Performance Index</div>
-             <div style={{ position: "relative", width: "130px", height: "130px", margin: "0 auto", borderRadius: "50%", border: `6px solid ${C.cardAlt}`, display: "flex", alignItems: "center", justifyCenter: "center", flexDirection: "column" }}>
+             <div style={{ position: "relative", width: "130px", height: "130px", margin: "0 auto", borderRadius: "50%", border: `6px solid ${C.cardAlt}`, display: "flex", alignItems: "center", justifyContent: "center", flexDirection: "column" }}>
                 <span style={{ fontSize: "50px", fontWeight: 900, color: C.blue, lineHeight: 1 }}>{score}</span>
                 <span style={{ fontSize: "10px", fontWeight: 700, color: C.textMuted }}>/ 100</span>
              </div>
