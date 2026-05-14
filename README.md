@@ -108,9 +108,18 @@ Built with **Next.js 15**, **Firebase**, and **Google Gemini AI**, PrepEdge deli
 
 5. **Open [http://localhost:3010](http://localhost:3010)** to see the app in action!
 
+### Testing
+PrepEdge uses **Jest** and **React Testing Library** for automated testing.
+
+*   **Run All Tests**: `npm test`
+*   **Watch Mode**: `npm run test:watch`
+
+Tests are located in the `__tests__/` directory and cover critical logic like AI score extraction and utility functions.
+
 ---
 
 ## 📂 Project Structure
+
 
 ```text
 my-app/

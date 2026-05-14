@@ -24,7 +24,7 @@ const checkIconExists = async (url: string) => {
 
 export const getTechLogos = async (techstack: string[] | string) => {
   const techArray = typeof techstack === "string" ? techstack.split(",").map(s => s.trim()) : techstack;
-  
+
   if (!techArray || techArray.length === 0) return [];
 
   const logoURLs = techArray.map((tech) => {
@@ -55,7 +55,7 @@ export const extractScoreFromText = (text: string): number => {
   if (!text) return 0;
 
   const lowerText = text.toLowerCase().replace(/[.,\/#!$%\^&\*;:{}=\-_`~()]/g, " ").replace(/-/g, " ");
-  
+
   // 1. Primary: Match digits (e.g., "85/100" or "Score: 90")
   const digitMatch = lowerText.match(/(?:final score|score|marks|assessment|index|performance)\s*[,:]?\s*(\d+)/i);
   if (digitMatch) {
@@ -72,7 +72,7 @@ export const extractScoreFromText = (text: string): number => {
 
   const words = lowerText.split(/\s+/);
   const indicators = ["score", "marks", "assessment", "index", "performance", "final"];
-  
+
   let scoreIndex = -1;
   for (let i = 0; i < words.length; i++) {
     if (indicators.includes(words[i])) {
@@ -103,18 +103,18 @@ export const extractScoreFromText = (text: string): number => {
   // Fallback: search for any number word 1-100
   let bestScore = 0;
   for (let i = 0; i < words.length; i++) {
-      if (wordMap[words[i]] !== undefined) {
-          let current = wordMap[words[i]];
-          if (i + 1 < words.length && wordMap[words[i+1]] !== undefined) {
-              current += wordMap[words[i+1]];
-          }
-          if (current > bestScore && current <= 100) bestScore = current;
-      } else if (/^\d+$/.test(words[i])) {
-          const val = parseInt(words[i]);
-          if (val > bestScore && val <= 100) bestScore = val;
+    if (wordMap[words[i]] !== undefined) {
+      let current = wordMap[words[i]];
+      if (i + 1 < words.length && wordMap[words[i + 1]] !== undefined) {
+        current += wordMap[words[i + 1]];
       }
+      if (current > bestScore && current <= 100) bestScore = current;
+    } else if (/^\d+$/.test(words[i])) {
+      const val = parseInt(words[i]);
+      if (val > bestScore && val <= 100) bestScore = val;
+    }
   }
 
   return bestScore;
 };
-
+
