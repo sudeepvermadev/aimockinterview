@@ -40,3 +40,18 @@ yarn-error.log*
 *.tsbuildinfo
 next-env.d.ts
 *.xlsx
+
+# security & keys
+RAW_KEY.txt
+certificates/
+scratch/
+
+# debug & logs
+out.txt
+build_output.txt
+server-output.html
+*.log
+
+# test scripts
+test-*.js
+test_*.js

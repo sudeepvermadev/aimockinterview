@@ -37,7 +37,7 @@ const Page = async ({ searchParams }: { searchParams: Promise<{ role?: string; t
             <div className="flex items-center gap-4 md:gap-5">
               {/* Icon bubble */}
               <div className={`w-12 h-12 md:w-14 md:h-14 rounded-2xl bg-gradient-to-br ${meta?.color || "from-blue-500 to-indigo-500"} flex items-center justify-center text-xl md:text-2xl shadow-lg flex-shrink-0`}>
-                {meta?.emoji ?? <Mic className="w-5 h-5 md:w-6 md:w-6 text-white" />}
+                {meta?.emoji ?? <Mic className="w-5 h-5 md:w-6 text-white" />}
               </div>
 
               <div>
@@ -76,7 +76,9 @@ const Page = async ({ searchParams }: { searchParams: Promise<{ role?: string; t
           userId={user?.id}
           type={agentType}
           role={agentRole}
-          userPhotoUrl={(user as any).photoURL}
+          userPhotoUrl={user?.photoURL}
+          walletBalance={user?.walletBalance}
+          isPro={user?.isPro}
         />
       </div>
     </div>

@@ -30,6 +30,7 @@ interface ShareProfileProps {
     photoURL?: string;
     streakCount?: number;
     initial?: string;
+    isPro?: boolean;
   };
   stats: {
     totalInterviews: number;

@@ -47,7 +47,7 @@ import { Button } from "@/components/ui/button";
 import { getInterviewById, getFeedbackByInterviewId, toggleFeedbackVisibility, updateFeedbackScore } from "@/lib/actions/general.action";
 import { getCurrentUser } from "@/lib/actions/auth.action";
 import { toast } from "sonner";
-import { cn } from "@/lib/utils";
+import { cn, extractScoreFromText } from "@/lib/utils";
 import html2canvas from "html2canvas";
 import jsPDF from "jspdf";
 import ReportTemplate from "@/components/ReportTemplate";
@@ -77,9 +77,7 @@ export default function FeedbackPage() {
     let currentScore = feedback.totalScore || 0;
     if (currentScore === 0 && transcript.length > 0) {
         const transcriptText = transcript.map((t: any) => t.content).join(" ");
-        const scoreMatch = transcriptText.match(/(?:Final Score|Score|Marks|Assessment|Index)\s*[,:]?\s*(\d+)/i);
-        const rawMatch = scoreMatch?.[1];
-        if (rawMatch) currentScore = parseInt(rawMatch.substring(0, 2));
+        currentScore = extractScoreFromText(transcriptText);
     }
     
     return { score: currentScore, transcript, comparisons };

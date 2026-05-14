@@ -7,6 +7,20 @@ import { createNotification } from "./notifications.action";
 
 const SESSION_DURATION = 60 * 60 * 24 * 7; // 1 week
 
+export interface User {
+  id: string;
+  name: string;
+  email: string;
+  createdAt: string;
+  streakCount?: number;
+  lastActiveDate?: string | null;
+  badges?: string[];
+  walletBalance?: number;
+  photoURL?: string;
+  isPro?: boolean;
+  plan?: string;
+}
+
 export async function signUp(params: { uid: string; name: string; email: string }) {
   try {
     await adminDb.collection("users").doc(params.uid).set({
@@ -16,6 +30,20 @@ export async function signUp(params: { uid: string; name: string; email: string 
       streakCount: 0,
       lastActiveDate: null,
       badges: [],
+      walletBalance: 200, // Welcome Bonus
+    });
+
+    // Create a transaction record for the welcome bonus
+    const txnId = `BONUS-${Math.random().toString(36).substring(2, 11).toUpperCase()}`;
+    await adminDb.collection("transactions").doc(txnId).set({
+      userId: params.uid,
+      amount: 0,
+      coinsAdded: 200,
+      type: "recharge",
+      paymentMethod: "Welcome Gift 🎁",
+      transactionId: txnId,
+      timestamp: new Date().toISOString(),
+      status: "success",
     });
 
     // Send Welcome Email (Fire and Forget)
@@ -26,7 +54,7 @@ export async function signUp(params: { uid: string; name: string; email: string 
       userId: params.uid,
       type: "welcome",
       title: "Welcome to PrepEdge! 🎉",
-      message: `Hi ${params.name}, welcome aboard! Visit https://luca-subhyoidean-governmentally.ngrok-free.dev to start your AI-powered mock interview journey and build confidence.`,
+      message: `Hi ${params.name}, welcome aboard! We've added 200 PrepCoins to your wallet as a gift 🎁. Use them to try our premium mock interviews!`,
     }).catch(e => console.error("Notification create failed:", e));
 
     return { success: true, message: "Account created successfully!" };
@@ -72,7 +100,7 @@ export async function signOut() {
   cookieStore.delete("session");
 }
 
-export async function getCurrentUser() {
+export async function getCurrentUser(): Promise<User | null> {
   const cookieStore = await cookies();
   const sessionCookie = cookieStore.get("session")?.value;
   if (!sessionCookie) return null;
@@ -94,6 +122,20 @@ export async function getCurrentUser() {
         streakCount: 0,
         lastActiveDate: null,
         badges: [],
+        walletBalance: 200, // Welcome Bonus
+      });
+
+      // Create a transaction record for the welcome bonus
+      const txnId = `BONUS-${Math.random().toString(36).substring(2, 11).toUpperCase()}`;
+      await adminDb.collection("transactions").doc(txnId).set({
+        userId: decodedClaims.uid,
+        amount: 0,
+        coinsAdded: 200,
+        type: "recharge",
+        paymentMethod: "Welcome Gift 🎁",
+        transactionId: txnId,
+        timestamp: new Date().toISOString(),
+        status: "success",
       });
 
       // Send Welcome Email for First-Time Social Login
@@ -105,22 +147,22 @@ export async function getCurrentUser() {
           userId: decodedClaims.uid,
           type: "welcome",
           title: "Welcome to PrepEdge! 🎉",
-          message: `Hi ${guestName}, welcome aboard! Visit https://luca-subhyoidean-governmentally.ngrok-free.dev to start your AI-powered mock interview journey and build confidence.`,
+          message: `Hi ${guestName}, welcome aboard! We've added 200 PrepCoins to your wallet as a gift 🎁. Use them to try our premium mock interviews!`,
         }).catch(e => console.error("Notification create failed:", e));
       }
 
       return {
         id: decodedClaims.uid,
         name: authUser.displayName || "Unknown User",
-        email: authUser.email,
+        email: authUser.email || "",
         createdAt: new Date().toISOString(),
       };
     }
 
     return {
-      ...userRecord.data(),
       id: userRecord.id,
-    };
+      ...userRecord.data(),
+    } as User;
   } catch (error) {
     console.error("Session Verification Error:", error);
     return null;
@@ -235,6 +277,23 @@ export async function deleteUserAccount(userId: string) {
   } catch (error: any) {
     console.error("❌ Error deleting account:", error);
     return { success: false, message: error.message || "Failed to delete account." };
+  }
+}
+
+/**
+ * Admin Action: Get all registered users
+ */
+export async function getAllUsers() {
+  try {
+    const snapshot = await adminDb.collection("users").orderBy("createdAt", "desc").get();
+    const users = snapshot.docs.map(doc => ({
+      id: doc.id,
+      ...doc.data()
+    }));
+    return { success: true, users };
+  } catch (error: any) {
+    console.error("❌ Get All Users Error:", error);
+    return { success: false, error: error.message };
   }
 }
 

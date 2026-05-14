@@ -299,8 +299,32 @@ export default function Page() {
                       <CartesianGrid strokeDasharray="3 3" vertical={false} stroke={theme === 'dark' ? "rgba(255,255,255,0.05)" : "rgba(0,0,0,0.05)"} />
                       <XAxis dataKey="date" stroke={theme === 'dark' ? "#9ca3af" : "#64748b"} fontSize={10} tickLine={false} axisLine={false} />
                       <YAxis stroke={theme === 'dark' ? "#9ca3af" : "#64748b"} fontSize={10} tickLine={false} axisLine={false} domain={[0, 100]} ticks={[0, 50, 100]} />
-                      <Tooltip contentStyle={{ backgroundColor: theme === 'dark' ? '#11111d' : '#ffffff', border: theme === 'dark' ? '1px solid rgba(255,255,255,0.1)' : '1px solid rgba(0,0,0,0.1)', borderRadius: '12px' }} itemStyle={{ color: '#3b82f6' }} />
-                      <Line type="monotone" dataKey="score" stroke="#3b82f6" strokeWidth={3} dot={{ fill: '#3b82f6', r: 3, stroke: theme === 'dark' ? '#fff' : '#000' }} activeDot={{ r: 5, strokeWidth: 0 }} />
+                      <Tooltip
+                        content={({ active, payload }: any) => {
+                          if (active && payload && payload.length) {
+                            const data = payload[0].payload;
+                            return (
+                              <div className={`${theme === 'dark' ? 'bg-[#11111d]' : 'bg-white'} border ${theme === 'dark' ? 'border-white/10' : 'border-black/10'} p-4 rounded-2xl shadow-2xl backdrop-blur-md`}>
+                                <p className="text-[10px] font-black text-blue-400 uppercase tracking-widest mb-1">{data.date}</p>
+                                <p className="text-sm font-bold text-[var(--text-primary)] mb-2">{data.role}</p>
+                                <div className="flex items-center gap-2">
+                                  <div className="w-2 h-2 rounded-full bg-blue-500" />
+                                  <p className="text-xl font-black text-blue-400">{data.score}%</p>
+                                </div>
+                              </div>
+                            );
+                          }
+                          return null;
+                        }}
+                      />
+                      <Line 
+                        type="monotone" 
+                        dataKey="score" 
+                        stroke="#3b82f6" 
+                        strokeWidth={4} 
+                        dot={{ fill: '#3b82f6', r: 4, strokeWidth: 2, stroke: theme === 'dark' ? '#fff' : '#fff' }} 
+                        activeDot={{ r: 6, strokeWidth: 0 }} 
+                      />
                     </LineChart>
                   </ResponsiveContainer>
                 </CardContent>
@@ -320,9 +344,29 @@ export default function Page() {
                   <ResponsiveContainer width="100%" height="80%">
                     <RadarChart cx="50%" cy="50%" outerRadius="80%" data={analyticsData.skillBreakdown}>
                       <PolarGrid stroke={theme === 'dark' ? "rgba(255,255,255,0.1)" : "rgba(0,0,0,0.1)"} />
-                      <PolarAngleAxis dataKey="subject" tick={{ fill: theme === 'dark' ? '#9ca3af' : '#64748b', fontSize: 9 }} />
+                      <PolarAngleAxis dataKey="subject" tick={{ fill: theme === 'dark' ? '#9ca3af' : '#64748b', fontSize: 10, fontWeight: 600 }} />
                       <PolarRadiusAxis angle={30} domain={[0, 100]} tick={false} axisLine={false} />
-                      <Radar name="User" dataKey="A" stroke="#818cf8" fill="#818cf8" fillOpacity={0.5} />
+                      <Tooltip 
+                        content={({ active, payload }: any) => {
+                          if (active && payload && payload.length) {
+                            return (
+                              <div className="bg-[#11111d] border border-white/10 p-3 rounded-xl shadow-xl">
+                                <p className="text-xs font-bold text-white mb-1">{payload[0].payload.subject}</p>
+                                <p className="text-lg font-black text-purple-400">{payload[0].value}/100</p>
+                              </div>
+                            );
+                          }
+                          return null;
+                        }}
+                      />
+                      <Radar 
+                        name="User" 
+                        dataKey="A" 
+                        stroke="#818cf8" 
+                        fill="#818cf8" 
+                        fillOpacity={0.6} 
+                        dot={{ r: 3, fill: "#818cf8" }}
+                      />
                     </RadarChart>
                   </ResponsiveContainer>
                 </CardContent>

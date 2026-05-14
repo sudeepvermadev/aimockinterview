@@ -9,7 +9,10 @@ import { adminDb } from "@/firebase/admin";
 import { getRandomInterviewCover } from "@/lib/utils";
 
 export async function POST(request: Request) {
+  console.log("POST /api/vapi/generate hit");
   const body = await request.json();
+  console.log("Body received:", JSON.stringify(body).slice(0, 100));
+
 
   let type, role, level, techstack, amount, userid;
   let toolCallId = null;
@@ -30,14 +33,24 @@ export async function POST(request: Request) {
   } else {
     // Standard direct call
     ({ type, role, level, techstack, amount, userid } = body);
+    
+    // Fallbacks to avoid Firebase crashes if fields are missing
+    type = type || "General";
+    role = role || "Software Engineer";
+    level = level || "Mid";
+    techstack = techstack || "None";
+    amount = amount || "5";
+    userid = userid || "anonymous";
   }
 
   try {
     let finalQuestions: string[] = [];
 
     try {
+      console.log("Calling Gemini with model gemini-2.0-flash-001...");
       const { text: questions } = await generateText({
         model: google("gemini-2.0-flash-001"),
+
 
         prompt: `Act as an expert interviewer for exactly ${role}.
           The candidate level is ${level}.
@@ -84,11 +97,12 @@ export async function POST(request: Request) {
 
     // If this was a Vapi webhook, respond in Vapi's required format
     if (toolCallId) {
+      console.log(`✅ Responding to Vapi tool call [${toolCallId}] with ${finalQuestions.length} questions`);
       return Response.json({
         results: [
           {
             toolCallId: toolCallId,
-            result: `Successfully generated ${finalQuestions.length} questions. Here they are for reference: ${JSON.stringify(finalQuestions)}`
+            result: `Successfully generated ${finalQuestions.length} questions. The interview is now ready. Please proceed by asking the first question.`
           }
         ]
       }, { status: 200 });
@@ -98,20 +112,22 @@ export async function POST(request: Request) {
     return Response.json({ success: true, id: docRef.id }, { status: 200 });
 
   } catch (error) {
-    console.error("Error:", error);
+    console.error("Critical Error in POST /api/vapi/generate:", error);
     
+    const errorMessage = error instanceof Error ? error.message : String(error);
+
     if (toolCallId) {
        return Response.json({
         results: [
           {
             toolCallId: toolCallId,
-            error: error instanceof Error ? error.message : "Failed to generate interview questions."
+            error: errorMessage
           }
         ]
       }, { status: 500 });
     }
 
-    return Response.json({ success: false, error: error }, { status: 500 });
+    return Response.json({ success: false, error: errorMessage }, { status: 500 });
   }
 }
 

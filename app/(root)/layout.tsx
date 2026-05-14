@@ -5,13 +5,11 @@ import UserMenu from "@/components/UserMenu";
 import Footer from "@/components/Footer";
 import ThemeToggle from "@/components/ThemeToggle";
 import { getCurrentUser } from "@/lib/actions/auth.action";
-import { getStreakHistory } from "@/lib/actions/general.action";
 import StreakBadge from "@/components/StreakBadge";
 
 const MainLayout = async ({ children, modal }: { children: React.ReactNode, modal: React.ReactNode }) => {
   const user = await getCurrentUser();
   const streak = (user as any)?.streakCount || 0;
-  const history = user ? await getStreakHistory(user.id) : [];
 
   return (
     <div className="min-h-screen flex flex-col">
@@ -46,7 +44,7 @@ const MainLayout = async ({ children, modal }: { children: React.ReactNode, moda
             {/* Streak Feature */}
             {user && (
               <div className="hidden sm:flex transition-all duration-300 transform animate-fadeIn">
-                <StreakBadge streak={streak} history={history} />
+                <StreakBadge streak={streak} />
               </div>
             )}
 

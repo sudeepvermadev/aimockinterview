@@ -128,7 +128,7 @@
 
 /* ── Light mode overrides ──────────────────────────── */
 html:not(.dark) {
-  --surface-base: #f8faff;
+  --surface-base: #ffffff;
   --surface-card: #ffffff;
   --surface-card-alt: #f1f5f9;
   --surface-header: rgba(248, 250, 255, 0.85);

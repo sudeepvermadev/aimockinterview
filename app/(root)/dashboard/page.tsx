@@ -107,7 +107,7 @@ export default function DashboardPage() {
             title="Total Interviews"
             value={data?.totalInterviews || 0}
             icon={<Target className="text-blue-400" />}
-            description="Sessions completed"
+            description={`${data?.completedInterviews || 0} sessions completed`}
           />
           <StatCard
             title="Highest Score"
@@ -158,8 +158,22 @@ export default function DashboardPage() {
                       ticks={[0, 25, 50, 75, 100]}
                     />
                     <Tooltip
-                      contentStyle={{ backgroundColor: '#11111d', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '12px' }}
-                      itemStyle={{ color: '#60a5fa' }}
+                      content={({ active, payload }: any) => {
+                        if (active && payload && payload.length) {
+                          const data = payload[0].payload;
+                          return (
+                            <div className="bg-[#11111d] border border-white/10 p-4 rounded-2xl shadow-2xl backdrop-blur-md">
+                              <p className="text-[10px] font-black text-blue-400 uppercase tracking-widest mb-1">{data.date}</p>
+                              <p className="text-sm font-bold text-white mb-2">{data.role}</p>
+                              <div className="flex items-center gap-2">
+                                <div className="w-2 h-2 rounded-full bg-blue-500" />
+                                <p className="text-xl font-black text-blue-400">{data.score}%</p>
+                              </div>
+                            </div>
+                          );
+                        }
+                        return null;
+                      }}
                     />
                     <Line
                       type="monotone"

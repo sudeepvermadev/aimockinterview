@@ -6,9 +6,13 @@ import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Briefcase, Sparkles, Loader2, Wand2, ArrowRight, ShieldCheck } from "lucide-react";
 import { generateJobSpecificQuestions } from "@/lib/actions/job-boost.action";
+import { deductCoins } from "@/lib/actions/payment.action";
+import { auth, db } from "@/firebase/client";
+import { doc, getDoc } from "firebase/firestore";
 import { toast } from "sonner";
 import { useRouter } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
+import { Coins } from "lucide-react";
 
 const JobBoostModal = () => {
     const [open, setOpen] = useState(false);
@@ -22,17 +26,56 @@ const JobBoostModal = () => {
             return;
         }
 
+        const user = auth.currentUser;
+        if (!user) {
+            toast.error("Please sign in to use this feature.");
+            return;
+        }
+
         setIsAnalyzing(true);
-        const toastId = toast.loading("AI is analyzing the JD and generating your customized questions...");
+        const toastId = toast.loading("Checking premium access...");
 
         try {
+            // 1. Check User Status (Pro vs Coins)
+            const userDoc = await getDoc(doc(db, "users", user.uid));
+            if (!userDoc.exists()) {
+                toast.error("User profile not found.", { id: toastId });
+                setIsAnalyzing(false);
+                return;
+            }
+
+            const userData = userDoc.data();
+            const isPro = userData.isPro || false;
+            const balance = userData.walletBalance || 0;
+            const BOOST_COST = 50;
+
+            if (!isPro) {
+                if (balance < BOOST_COST) {
+                    toast.error(`Low Balance: Job Boost costs ${BOOST_COST} PrepCoins. Please recharge.`, { 
+                        id: toastId,
+                        description: "You need 50 PrepCoins to use this premium tool."
+                    });
+                    router.push("/pricing");
+                    setOpen(false);
+                    return;
+                }
+                
+                // Deduct Coins
+                toast.loading(`Deducting ${BOOST_COST} PrepCoins...`, { id: toastId });
+                const deductResult = await deductCoins(user.uid, BOOST_COST, "Job-Specific Boost");
+                if (!deductResult.success) {
+                    toast.error(deductResult.message, { id: toastId });
+                    setIsAnalyzing(false);
+                    return;
+                }
+            }
+
+            // 2. Generate Questions
+            toast.loading("AI is analyzing the JD and generating your customized questions...", { id: toastId });
             const result = await generateJobSpecificQuestions(jdText);
             if (result.success && result.data) {
-                toast.success("Job Specific Boost Activated!", { id: toastId });
+                toast.success(isPro ? "Pro Boost Activated!" : "50 PrepCoins Used. Boost Activated!", { id: toastId });
                 
-                // Navigate to the interview with custom questions passed as searchParams
-                // This is a simple way to pass data between pages in Next.js
-                // We'll update the Interview page to pick these up.
                 const queryParams = new URLSearchParams({
                     role: result.data.role,
                     type: "Job Specific",
@@ -47,6 +90,7 @@ const JobBoostModal = () => {
                 toast.error(result.error || "Failed to analyze JD", { id: toastId });
             }
         } catch (error) {
+            console.error("Job Boost Error:", error);
             toast.error("An unexpected error occurred.", { id: toastId });
         } finally {
             setIsAnalyzing(false);
@@ -123,19 +167,25 @@ const JobBoostModal = () => {
                             {isAnalyzing ? (
                                 <>
                                     <Loader2 className="mr-3 h-5 w-5 animate-spin" />
-                                    AI Analyst Thinking...
+                                    Processing...
                                 </>
                             ) : (
                                 <>
                                     <Wand2 className="mr-3 h-5 w-5" />
-                                    Analyze & Prep Me
+                                    Analyze & Prep (50 Coins)
                                 </>
                             )}
                         </Button>
 
-                        <div className="flex items-center justify-center gap-2 text-[10px] text-white/20 font-bold uppercase tracking-[0.2em] pt-2">
-                             <ShieldCheck size={12} className="text-emerald-500/50" />
-                             Private AI Analysis • Secure
+                        <div className="flex items-center justify-center gap-4 text-[10px] text-white/20 font-bold uppercase tracking-[0.2em] pt-2">
+                             <div className="flex items-center gap-1.5">
+                                <ShieldCheck size={12} className="text-emerald-500/50" />
+                                Secure
+                             </div>
+                             <div className="flex items-center gap-1.5">
+                                <Coins size={12} className="text-amber-500/50" />
+                                50 PrepCoins
+                             </div>
                         </div>
                     </div>
                 </div>

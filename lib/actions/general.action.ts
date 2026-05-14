@@ -1,17 +1,16 @@
 "use server";
 
 import { adminDb } from "@/firebase/admin";
-import { generateObject } from "ai";
-import { createGoogleGenerativeAI } from "@ai-sdk/google";
-import { feedbackSchema } from "@/constants";
 import { updateUserStreak } from "./auth.action";
+import { extractScoreFromText } from "@/lib/utils";
 import { checkAchievements } from "./achievements.action";
+import { deductCoins } from "./payment.action";
 
 import { GoogleGenerativeAI } from "@google/generative-ai";
 
 const googleGenAI = new GoogleGenerativeAI(process.env.GOOGLE_GENERATIVE_AI_API_KEY as string);
 
-export async function createFeedback(params: { interviewId: string; userId: string; transcript: any[]; questions?: string[]; feedbackId?: string; liveScore?: number }) {
+export async function createFeedback(params: { interviewId: string; userId: string; transcript: { role: string; content: string }[]; questions?: string[]; feedbackId?: string; liveScore?: number }) {
   const { interviewId, userId, transcript, questions, feedbackId, liveScore } = params;
 
   try {
@@ -33,7 +32,7 @@ export async function createFeedback(params: { interviewId: string; userId: stri
     }
 
     // Use actual question count if provided, otherwise fallback to counting transcript messages
-    const questionCount = (questions && questions.length > 0) ? questions.length : transcript.filter((t: any) => t.role === "assistant" || t.role === "system").length;
+    const questionCount = (questions && questions.length > 0) ? questions.length : transcript.filter((t: { role: string }) => t.role === "assistant" || t.role === "system").length;
     const weightPerQuestion = Math.max(1, Math.floor(100 / (questionCount || 1)));
 
     console.log(`📝 Generating feedback for transcript length: ${transcript.length}, Questions: ${questionCount}, Weight: ${weightPerQuestion}`);
@@ -41,7 +40,6 @@ export async function createFeedback(params: { interviewId: string; userId: stri
     try {
       const model = googleGenAI.getGenerativeModel({
         model: "gemini-1.5-pro",
-        // @ts-ignore
         generationConfig: {
           responseMimeType: "application/json",
         }
@@ -75,11 +73,21 @@ export async function createFeedback(params: { interviewId: string; userId: stri
         Transcript:
         ${formattedTranscript}
         
+        IMPORTANT: Look specifically for the "assistant" messages mentioning a "Final Score". 
+        If the coach said a score like "sixty-five" or "85/100", use that as the basis for 'overallScore'.
+        
         Return STRICTLY valid JSON with the following structure:
         {
           "overallScore": <total score out of 100>,
           "summary": "<2-3 sentence executive summary of performance>",
           "aiProTip": "<One high-level strategy tip for the entire interview>",
+          "categoryScores": [
+            { "name": "Communication Skills", "score": <number 0-100> },
+            { "name": "Technical Knowledge", "score": <number 0-100> },
+            { "name": "Problem Solving", "score": <number 0-100> },
+            { "name": "Confidence and Clarity", "score": <number 0-100> },
+            { "name": "Cultural Fit", "score": <number 0-100> }
+          ],
           "details": [
             {
               "question": "<the specific question>",
@@ -101,17 +109,22 @@ export async function createFeedback(params: { interviewId: string; userId: stri
       let object;
       try {
         object = JSON.parse(outputText);
-      } catch (parseErr) {
+      } catch (error) {
         console.error("❌ Failed to parse Gemini JSON output:", outputText);
         throw new Error("Invalid output format from Gemini");
       }
 
+      // Final score logic: liveScore > extracted verbal score > Gemini calculated score
+      const transcriptText = transcript.map(m => m.content).join(" ");
+      const verbalScore = extractScoreFromText(transcriptText);
+
       const feedback = {
         interviewId,
         userId: userId || "vapi-session",
-        totalScore: liveScore || object.overallScore || 0,
+        totalScore: liveScore || verbalScore || object.overallScore || 0,
         finalAssessment: object.summary || "No assessment generated.",
         aiProTip: object.aiProTip || "Practice more to improve your confidence.",
+        categoryScores: object.categoryScores || [],
         comparisons: object.details || [],
         transcript,
         createdAt: new Date().toISOString(),
@@ -132,11 +145,19 @@ export async function createFeedback(params: { interviewId: string; userId: stri
       if (userId && userId !== "vapi-session") {
         await updateUserStreak(userId);
         await checkAchievements(userId);
+
+        // Deduct 50 Coins for non-Pro users
+        const userDoc = await adminDb.collection("users").doc(userId).get();
+        const userData = userDoc.data();
+        if (!userData?.isPro) {
+          console.log(`🪙 Deducting 50 coins for user ${userId} (Non-Pro)`);
+          await deductCoins(userId, 50, "AI Mock Interview");
+        }
       }
 
       console.log("✅ Feedback saved successfully:", fbRef.id);
       return { success: true, feedbackId: fbRef.id };
-    } catch (aiError: any) {
+    } catch (aiError: unknown) {
       console.error("❌ Gemini Feedback Generation Error, falling back to default:", aiError);
       
       // Attempt to extract score from transcript even in fallback
@@ -150,13 +171,8 @@ export async function createFeedback(params: { interviewId: string; userId: stri
         
         const rawMatch = scoreMatch?.[1] || altMatch?.[1];
         if (rawMatch) {
-          let val = rawMatch;
-          // Handle "5100" transcription error for "51 out of 100"
-          if (val.length === 4 && val.endsWith("00")) {
-            extractedScore = parseInt(val.substring(0, 2));
-          } else {
-            extractedScore = parseInt(val);
-          }
+          const val = rawMatch;
+          extractedScore = parseInt(val);
         }
       }
 
@@ -167,6 +183,13 @@ export async function createFeedback(params: { interviewId: string; userId: stri
         finalAssessment: extractedScore > 0 
           ? `Exceptional session. You achieved an overall score of ${extractedScore}/100, demonstrating strong alignment with the core competencies of the ${role || 'targeted'} role. Your communication was clear, and you successfully navigated the key technical challenges presented.`
           : "Your interview session has been successfully recorded. Our AI engine is finalizing your technical breakdown. You can review your detailed transcript in the appraisal log below.",
+        categoryScores: [
+          { name: "Communication Skills", score: extractedScore },
+          { name: "Technical Knowledge", score: Math.max(0, extractedScore - 5) },
+          { name: "Problem Solving", score: Math.max(0, extractedScore - 10) },
+          { name: "Confidence and Clarity", score: extractedScore },
+          { name: "Cultural Fit", score: 80 }
+        ],
         comparisons: [],
         transcript,
         createdAt: new Date().toISOString(),
@@ -179,10 +202,18 @@ export async function createFeedback(params: { interviewId: string; userId: stri
         if (userId && userId !== "vapi-session") {
           await updateUserStreak(userId);
           await checkAchievements(userId);
+
+          // Deduct 50 Coins for non-Pro users (Fallback Path)
+          const userDoc = await adminDb.collection("users").doc(userId).get();
+          const userData = userDoc.data();
+          if (!userData?.isPro) {
+            console.log(`🪙 Deducting 50 coins for user ${userId} (Non-Pro - Fallback Path)`);
+            await deductCoins(userId, 50, "AI Mock Interview");
+          }
         }
         
         return { success: true, feedbackId: fbRef.id, isFallback: true };
-      } catch (error: any) {
+      } catch (innerError) {
         return { success: false, error: "System error: Failed to save interview session." };
       }
     }
@@ -206,7 +237,7 @@ export async function updateFeedbackScore(feedbackId: string, score: number) {
   }
 }
 
-export async function getInterviewById(id: string): Promise<any> {
+export async function getInterviewById(id: string): Promise<Record<string, unknown> | null> {
   try {
     const interview = await adminDb.collection("interviews").doc(id).get();
     if (!interview.exists) return null;
@@ -251,7 +282,7 @@ export async function getInterviewsByUserId(userId: string) {
     }));
 
     // Sort in memory to avoid the composite index requirement
-    interviews.sort((a: any, b: any) => {
+    interviews.sort((a: Record<string, any>, b: Record<string, any>) => {
       const dateA = new Date(a.createdAt || 0).getTime();
       const dateB = new Date(b.createdAt || 0).getTime();
       return dateB - dateA; // Descending
@@ -261,6 +292,20 @@ export async function getInterviewsByUserId(userId: string) {
   } catch (error) {
     console.error("Error fetching user interviews:", error);
     return [];
+  }
+}
+
+export async function getAllInterviews() {
+  try {
+    const snapshot = await adminDb.collection("interviews").get();
+    const interviews = snapshot.docs.map(doc => ({
+      id: doc.id,
+      ...doc.data()
+    }));
+    return { success: true, interviews };
+  } catch (error: any) {
+    console.error("❌ Get All Interviews Error:", error);
+    return { success: false, error: error.message };
   }
 }
 
@@ -305,6 +350,34 @@ export async function submitReview(params: { userId: string; rating: number; mes
   }
 }
 
+export async function getAllReviews() {
+  try {
+    const snapshot = await adminDb.collection("reviews").get();
+    const reviews = snapshot.docs.map(doc => ({
+      id: doc.id,
+      ...doc.data()
+    }));
+    return { success: true, reviews };
+  } catch (error: any) {
+    console.error("❌ Get All Reviews Error:", error);
+    return { success: false, error: error.message };
+  }
+}
+
+export async function getAllFeedbacks() {
+  try {
+    const snapshot = await adminDb.collection("feedback").get();
+    const feedbacks = snapshot.docs.map(doc => ({
+      id: doc.id,
+      ...doc.data()
+    }));
+    return { success: true, feedbacks };
+  } catch (error: any) {
+    console.error("❌ Get All Feedbacks Error:", error);
+    return { success: false, error: error.message };
+  }
+}
+
 export async function getTotalUserCount() {
   try {
     const snapshot = await adminDb.collection("users").get();
@@ -317,49 +390,84 @@ export async function getTotalUserCount() {
 
 export async function getUserAnalytics(userId: string) {
   try {
-    const feedbackSnapshot = await adminDb
-      .collection("feedback")
-      .where("userId", "==", userId)
-      .get();
+    // 1. Fetch both collections in parallel
+    const [feedbackSnapshot, interviewSnapshot] = await Promise.all([
+      adminDb.collection("feedback").where("userId", "==", userId).get(),
+      adminDb.collection("interviews").where("userId", "==", userId).get()
+    ]);
 
-    const feedbacks = feedbackSnapshot.docs.map((doc) => ({
-      ...doc.data(),
-      id: doc.id,
-    })).sort((a: any, b: any) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime());
+    const interviewMap = new Map(interviewSnapshot.docs.map(doc => [doc.id, doc.data()]));
+    
+    // 2. Identify only feedbacks that belong to an existing interview
+    const feedbacksRaw = feedbackSnapshot.docs.map((doc) => ({ ...doc.data(), id: doc.id } as any));
+    
+    // 3. Deduplicate: only the latest feedback per interviewId
+    const latestFeedbackByInterview = new Map<string, any>();
+    feedbacksRaw.forEach((fb) => {
+      if (interviewMap.has(fb.interviewId)) {
+        const current = latestFeedbackByInterview.get(fb.interviewId);
+        if (!current || new Date(fb.createdAt).getTime() > new Date(current.createdAt).getTime()) {
+          latestFeedbackByInterview.set(fb.interviewId, fb);
+        }
+      }
+    });
 
-    // Format for Score Trend (Line Chart)
-    const scoreTrend = feedbacks.map((fb: any) => ({
+    const validFeedbacks = Array.from(latestFeedbackByInterview.values()).sort(
+      (a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime()
+    );
+
+    // 4. Generate Score Trend (strictly chronological)
+    const scoreTrend = validFeedbacks.map((fb) => ({
       date: new Date(fb.createdAt).toLocaleDateString(undefined, { month: 'short', day: 'numeric' }),
-      score: fb.totalScore,
+      score: Number(fb.totalScore || 0),
+      role: interviewMap.get(fb.interviewId)?.role || "Interview session"
     }));
 
-    // Format for Skill Breakdown (Radar Chart - Average across all)
-    const skillMap: Record<string, { total: number; count: number }> = {};
-    feedbacks.forEach((fb: any) => {
-      fb.categoryScores?.forEach((cat: any) => {
-        if (!skillMap[cat.name]) skillMap[cat.name] = { total: 0, count: 0 };
-        skillMap[cat.name].total += cat.score;
-        skillMap[cat.name].count += 1;
+    // 5. Generate Skill Breakdown (Average across sessions)
+    const categories = ["Communication Skills", "Technical Knowledge", "Problem Solving", "Confidence and Clarity", "Cultural Fit"];
+    const skillTotals = new Map<string, { sum: number; count: number }>();
+    categories.forEach(cat => skillTotals.set(cat, { sum: 0, count: 0 }));
+
+    validFeedbacks.forEach((fb) => {
+      const scores = fb.categoryScores && fb.categoryScores.length > 0 
+        ? fb.categoryScores 
+        : categories.map((cat, idx) => ({
+            name: cat,
+            score: Math.max(0, Math.min(100, (fb.totalScore || 0) + (idx === 0 ? 0 : idx % 2 === 0 ? 5 : -5)))
+          }));
+
+      scores.forEach((cat: any) => {
+        const stats = skillTotals.get(cat.name);
+        if (stats) {
+          stats.sum += Number(cat.score || 0);
+          stats.count += 1;
+        }
       });
     });
 
-    const skillBreakdown = Object.entries(skillMap).map(([name, data]) => ({
-      subject: name,
-      A: Math.round(data.total / data.count),
-      fullMark: 100,
-    }));
+    const skillBreakdown = categories.map(cat => {
+      const stats = skillTotals.get(cat)!;
+      return {
+        subject: cat,
+        A: stats.count > 0 ? Math.round(stats.sum / stats.count) : 0,
+        fullMark: 100
+      };
+    });
 
     return {
       scoreTrend,
       skillBreakdown,
-      totalInterviews: feedbacks.length,
-      highestScore: Math.max(...feedbacks.map((fb: any) => fb.totalScore), 0),
-      averageScore: feedbacks.length > 0 
-        ? Math.round(feedbacks.reduce((acc: number, fb: any) => acc + fb.totalScore, 0) / feedbacks.length) 
+      totalInterviews: interviewSnapshot.size, 
+      completedInterviews: validFeedbacks.length,
+      highestScore: validFeedbacks.length > 0 
+        ? Math.max(...validFeedbacks.map((fb) => fb.totalScore || 0)) 
+        : 0,
+      averageScore: validFeedbacks.length > 0 
+        ? Math.round(validFeedbacks.reduce((acc, fb) => acc + (fb.totalScore || 0), 0) / validFeedbacks.length) 
         : 0,
     };
   } catch (error) {
-    console.error("❌ Error fetching analytics:", error);
+    console.error("❌ Critical Analytics Error:", error);
     return null;
   }
 }
@@ -420,8 +528,8 @@ export async function getStreakHistory(userId: string) {
       .get();
       
     const activeDates = new Set();
-    feedbackSnapshot.docs.forEach((doc: any) => {
-      const data = doc.data();
+    feedbackSnapshot.docs.forEach((doc) => {
+      const data = doc.data() as { createdAt?: string };
       if (data.createdAt) {
         activeDates.add(data.createdAt.split('T')[0]);
       }
@@ -444,6 +552,31 @@ export async function getStreakHistory(userId: string) {
   } catch (error) {
     console.error("❌ Error fetching streak history:", error);
     return [];
+  }
+}
+
+export async function getFullStreakData(userId: string): Promise<{ activeDates: string[]; streakCount: number }> {
+  try {
+    const feedbackSnapshot = await adminDb
+      .collection("feedback")
+      .where("userId", "==", userId)
+      .get();
+      
+    const activeDates: string[] = [];
+    feedbackSnapshot.docs.forEach((doc) => {
+      const data = doc.data() as { createdAt?: string };
+      if (data.createdAt) {
+        activeDates.push(data.createdAt.split('T')[0]);
+      }
+    });
+
+    return {
+      activeDates,
+      streakCount: activeDates.length > 0 ? (await adminDb.collection("users").doc(userId).get()).data()?.streakCount || 0 : 0
+    };
+  } catch (error) {
+    console.error("❌ Error fetching full streak data:", error);
+    return { activeDates: [], streakCount: 0 };
   }
 }
 

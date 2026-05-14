@@ -12,7 +12,10 @@ import {
   X,
   Smartphone,
   ChevronRight,
-  Info
+  Info,
+  QrCode,
+  Copy,
+  Check
 } from "lucide-react";
 import { Button } from "./ui/button";
 import { toast } from "sonner";
@@ -20,9 +23,10 @@ import { toast } from "sonner";
 interface SimulatedPaymentModalProps {
   isOpen: boolean;
   onClose: () => void;
-  onSuccess: () => void;
+  onSuccess: (data: { method: string; transactionId: string }) => void;
   planName: string;
   amount: string;
+  numericAmount: number;
 }
 
 export default function SimulatedPaymentModal({ 
@@ -30,12 +34,15 @@ export default function SimulatedPaymentModal({
   onClose, 
   onSuccess, 
   planName, 
-  amount 
+  amount,
+  numericAmount
 }: SimulatedPaymentModalProps) {
-  const [step, setStep] = useState<"method" | "card" | "processing" | "success">("method");
+  const [step, setStep] = useState<"method" | "card" | "upi" | "processing" | "success">("method");
   const [cardNumber, setCardNumber] = useState("");
   const [expiry, setExpiry] = useState("");
   const [cvv, setCvv] = useState("");
+  const [isCopied, setIsCopied] = useState(false);
+  const [txnId, setTxnId] = useState("");
 
   useEffect(() => {
     if (isOpen) {
@@ -43,18 +50,29 @@ export default function SimulatedPaymentModal({
       setCardNumber("");
       setExpiry("");
       setCvv("");
+      setIsCopied(false);
     }
   }, [isOpen]);
 
-  const handleProcessPayment = () => {
+  const handleProcessPayment = (method: string) => {
     setStep("processing");
+    const generatedTxnId = `TXN-${Math.random().toString(36).substring(2, 11).toUpperCase()}`;
+    setTxnId(generatedTxnId);
+
     // Simulate real network latency
     setTimeout(() => {
       setStep("success");
       setTimeout(() => {
-        onSuccess();
+        onSuccess({ method, transactionId: generatedTxnId });
       }, 2000);
     }, 3000);
+  };
+
+  const copyUpiId = () => {
+    navigator.clipboard.writeText("demo@upi");
+    setIsCopied(true);
+    toast.success("UPI ID copied!");
+    setTimeout(() => setIsCopied(false), 2000);
   };
 
   const formatCardNumber = (value: string) => {
@@ -101,7 +119,7 @@ export default function SimulatedPaymentModal({
             </div>
             <div>
               <h3 className="font-black text-lg text-[var(--text-primary)]">Secure Checkout</h3>
-              <p className="text-xs font-bold text-[var(--text-secondary)] uppercase tracking-widest">Powered by Stripe</p>
+              <p className="text-xs font-bold text-[var(--text-secondary)] uppercase tracking-widest">Powered by PrepEdge Pay</p>
             </div>
           </div>
           <button onClick={onClose} className="p-2 hover:bg-white/5 rounded-full transition-colors text-[var(--text-secondary)]">
@@ -122,7 +140,7 @@ export default function SimulatedPaymentModal({
                 <div className="p-6 rounded-3xl bg-blue-600/5 border border-blue-500/20 mb-8">
                   <div className="flex justify-between items-end">
                     <div>
-                      <p className="text-xs font-black text-blue-400 uppercase tracking-widest mb-1">Plan</p>
+                      <p className="text-xs font-black text-blue-400 uppercase tracking-widest mb-1">Item</p>
                       <h4 className="text-xl font-black text-[var(--text-primary)]">{planName}</h4>
                     </div>
                     <div className="text-right">
@@ -151,10 +169,11 @@ export default function SimulatedPaymentModal({
                   </button>
 
                   <button 
-                    className="w-full p-5 rounded-2xl bg-white/5 border border-white/5 opacity-50 cursor-not-allowed flex items-center justify-between"
+                    onClick={() => setStep("upi")}
+                    className="w-full p-5 rounded-2xl bg-white/5 border border-white/5 hover:border-green-500/50 hover:bg-green-500/5 transition-all flex items-center justify-between group"
                   >
                     <div className="flex items-center gap-4">
-                      <div className="w-12 h-12 rounded-xl bg-white/5 flex items-center justify-center border border-white/5">
+                      <div className="w-12 h-12 rounded-xl bg-white/5 flex items-center justify-center border border-white/5 group-hover:border-green-500/20 transition-all">
                         <Smartphone className="w-6 h-6 text-green-400" />
                       </div>
                       <div className="text-left">
@@ -162,14 +181,14 @@ export default function SimulatedPaymentModal({
                         <p className="text-xs font-bold text-[var(--text-secondary)]">PhonePe, GPay, Paytm</p>
                       </div>
                     </div>
-                    <Lock className="w-4 h-4 text-[var(--text-secondary)]" />
+                    <ChevronRight className="w-5 h-5 text-[var(--text-secondary)]" />
                   </button>
                 </div>
 
                 <div className="pt-4 flex items-start gap-3 p-4 rounded-2xl bg-yellow-500/5 border border-yellow-500/10">
                    <Info className="w-5 h-5 text-yellow-400 shrink-0" />
                    <p className="text-[10px] leading-relaxed font-bold text-yellow-400/80 uppercase tracking-tight">
-                     DEMO MODE: Use any 16-digit number as a test card to demonstrate the checkout flow for your interview.
+                     DEMO MODE: This is a simulated payment gateway. No real money will be charged.
                    </p>
                 </div>
               </motion.div>
@@ -224,7 +243,7 @@ export default function SimulatedPaymentModal({
                 </div>
 
                 <Button 
-                  onClick={handleProcessPayment}
+                  onClick={() => handleProcessPayment("card")}
                   disabled={cardNumber.length < 16}
                   className="w-full h-14 rounded-2xl bg-blue-600 hover:bg-blue-500 text-white font-black uppercase tracking-widest shadow-xl shadow-blue-500/20 mt-4"
                 >
@@ -237,6 +256,56 @@ export default function SimulatedPaymentModal({
                 >
                   Go Back
                 </button>
+              </motion.div>
+            )}
+
+            {step === "upi" && (
+              <motion.div 
+                key="upi"
+                initial={{ opacity: 0, x: 20 }}
+                animate={{ opacity: 1, x: 0 }}
+                exit={{ opacity: 0, x: -20 }}
+                className="space-y-6 text-center"
+              >
+                <div className="flex flex-col items-center gap-4">
+                  <div className="p-4 bg-white rounded-3xl border-4 border-green-500/20 shadow-2xl">
+                    {/* Simplified QR Placeholder */}
+                    <div className="w-48 h-48 bg-slate-100 flex items-center justify-center rounded-2xl border border-slate-200 overflow-hidden">
+                       <img 
+                         src="/dummy-qr.png" 
+                         alt="QR Code" 
+                         className="w-full h-full object-cover"
+                         onError={(e) => {
+                           e.currentTarget.src = "https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=upi://pay?pa=demo@upi&pn=PrepEdge&am=" + numericAmount;
+                         }}
+                       />
+                    </div>
+                  </div>
+                  
+                  <div className="space-y-1">
+                    <p className="text-xs font-black text-[var(--text-secondary)] uppercase tracking-widest">Scan with any UPI App</p>
+                    <div className="flex items-center gap-2 justify-center py-2 px-4 bg-white/5 rounded-xl border border-white/10 group cursor-pointer hover:bg-white/10 transition-all" onClick={copyUpiId}>
+                       <span className="font-bold text-[var(--text-primary)]">demo@upi</span>
+                       {isCopied ? <Check className="w-4 h-4 text-green-400" /> : <Copy className="w-4 h-4 text-[var(--text-secondary)]" />}
+                    </div>
+                  </div>
+                </div>
+
+                <div className="space-y-3 pt-2">
+                  <Button 
+                    onClick={() => handleProcessPayment("upi")}
+                    className="w-full h-14 rounded-2xl bg-green-600 hover:bg-green-500 text-white font-black uppercase tracking-widest shadow-xl shadow-green-500/20"
+                  >
+                    I Have Paid <ArrowRight className="ml-2 w-4 h-4" />
+                  </Button>
+                  
+                  <button 
+                    onClick={() => setStep("method")}
+                    className="w-full text-center text-xs font-bold text-[var(--text-secondary)] hover:text-[var(--text-primary)] uppercase tracking-widest transition-colors"
+                  >
+                    Cancel Payment
+                  </button>
+                </div>
               </motion.div>
             )}
 
@@ -254,8 +323,8 @@ export default function SimulatedPaymentModal({
                   </div>
                 </div>
                 <div>
-                  <h4 className="text-xl font-black text-[var(--text-primary)] mb-2">Processing Payment</h4>
-                  <p className="text-sm font-bold text-[var(--text-secondary)]">Please do not refresh the page...</p>
+                  <h4 className="text-xl font-black text-[var(--text-primary)] mb-2">Verifying Payment</h4>
+                  <p className="text-sm font-bold text-[var(--text-secondary)]">Please do not close this window...</p>
                 </div>
               </motion.div>
             )}
@@ -272,7 +341,8 @@ export default function SimulatedPaymentModal({
                 </div>
                 <div>
                   <h4 className="text-2xl font-black text-[var(--text-primary)] mb-2">Payment Successful!</h4>
-                  <p className="text-sm font-bold text-[var(--text-secondary)]">Welcome to PrepEdge Pro. Redirecting you now...</p>
+                  <p className="text-sm font-bold text-[var(--text-secondary)] mb-4">Transaction ID: {txnId}</p>
+                  <p className="text-xs font-bold text-green-500 uppercase tracking-widest">Balance Updated Instantly</p>
                 </div>
               </motion.div>
             )}
@@ -281,11 +351,14 @@ export default function SimulatedPaymentModal({
 
         {/* Footer */}
         <div className="p-8 pt-0 flex items-center justify-center gap-6">
-          <img src="https://stripe.com/img/v3/home/social.png" alt="Visa" className="h-4 opacity-50 grayscale brightness-200" />
+          <div className="flex items-center gap-4 opacity-50 grayscale brightness-200">
+             <img src="https://upload.wikimedia.org/wikipedia/commons/d/d1/RuPay_logo.svg" alt="RuPay" className="h-3" />
+             <img src="https://upload.wikimedia.org/wikipedia/commons/e/e1/UPI-Logo.png" alt="UPI" className="h-3" />
+          </div>
           <div className="w-[1px] h-4 bg-white/10" />
           <div className="flex items-center gap-1.5">
             <Lock className="w-3 h-3 text-[var(--text-secondary)]" />
-            <span className="text-[10px] font-bold text-[var(--text-secondary)] uppercase tracking-widest">AES-256 Encrypted</span>
+            <span className="text-[10px] font-bold text-[var(--text-secondary)] uppercase tracking-widest">PCI-DSS Compliant</span>
           </div>
         </div>
       </motion.div>

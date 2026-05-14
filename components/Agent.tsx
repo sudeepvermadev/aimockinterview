@@ -9,6 +9,7 @@ import { createFeedback, getInterviewsByUserId } from "@/lib/actions/general.act
 import { toast } from "sonner";
 import { Quote, Activity, CheckCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { extractScoreFromText } from "@/lib/utils";
 
 enum CallStatus {
   INACTIVE = "INACTIVE",
@@ -31,15 +32,19 @@ interface AgentProps {
   role?: string;
   questions?: string[];
   userPhotoUrl?: string;
+  walletBalance?: number;
+  isPro?: boolean;
 }
 
 
-const Agent = ({ userName, userId, interviewId, feedbackId, type, role, questions, userPhotoUrl }: AgentProps) => {
+const Agent = ({ userName, userId, interviewId, feedbackId, type, role, questions, userPhotoUrl, walletBalance, isPro }: AgentProps) => {
   const router = useRouter();
   const [status, setStatus] = useState<CallStatus>(CallStatus.INACTIVE);
   const [messages, setMessages] = useState<SavedMessage[]>([]);
-  const [isSpeaking, setIsSpeaking] = useState(false);
+  const [isUserSpeaking, setIsUserSpeaking] = useState(false);
+  const [isAssistantSpeaking, setIsAssistantSpeaking] = useState(false);
   const [lastMessage, setLastMessage] = useState<string>("");
+  const [partialTranscript, setPartialTranscript] = useState<string>("");
   const [textInput, setTextInput] = useState("");
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [isGenerating, setIsGenerating] = useState(false);
@@ -53,7 +58,7 @@ const Agent = ({ userName, userId, interviewId, feedbackId, type, role, question
   const [retryCount, setRetryCount] = useState(0);
   const [useFallback, setUseFallback] = useState(false);
   const [micState, setMicState] = useState<'pending' | 'granted' | 'denied'>('pending');
-  const [nativeVolume, setNativeVolume] = useState(0);
+  const [hasDetectedVoice, setHasDetectedVoice] = useState(false);
 
   // Local Persistence: Save session
   useEffect(() => {
@@ -98,9 +103,14 @@ const Agent = ({ userName, userId, interviewId, feedbackId, type, role, question
       console.log("✅ Vapi: call-start fired");
       setStatus(CallStatus.ACTIVE);
       setErrorMessage(null);
+      
+      // Force unmute to ensure the browser stream is active
+      try {
+        vapi.setMuted(false);
+      } catch (e) {
+        console.warn("Could not explicitly set muted state", e);
+      }
 
-      // Inject the generated questions into the conversation dynamically!
-      // This avoids overriding the user's dashboard prompt while giving the AI context.
       if (questions && questions.length > 0) {
         const questionsText = `[SYSTEM INSTRUCTION]: Here are the exact questions you MUST ask during this interview:\n${questions.map((q, i) => `${i + 1}. ${q}`).join('\n')}`;
         
@@ -123,35 +133,61 @@ const Agent = ({ userName, userId, interviewId, feedbackId, type, role, question
     const onCallEnd = () => {
       console.log("✅ Vapi: call-end fired");
       setStatus(CallStatus.FINISHED);
+      setIsUserSpeaking(false);
+      setIsAssistantSpeaking(false);
     };
 
     const onMessage = (message: any) => {
       console.log("📨 Vapi message:", message);
       
-      if (message.type === "transcript" && message.transcriptType === "final") {
-        const newMessage = { role: message.role, content: message.transcript } as SavedMessage;
-        setMessages((prev) => [...prev, newMessage]);
+      if (message.type === "transcript") {
+        console.log(`🎙️ [${message.transcriptType}] ${message.role}: ${message.transcript}`);
+        
+        if (message.transcriptType === "final") {
+          const newMessage = { role: message.role, content: message.transcript } as SavedMessage;
+          setMessages((prev) => [...prev, newMessage]);
+          setPartialTranscript(""); 
 
-        // Detect end of interview to stop call gracefully
-        if (message.transcript.toLowerCase().includes("interview complete") || 
-            message.transcript.toLowerCase().includes("interview is complete")) {
-          console.log("🎯 Conclusion detected in transcript. Ending call...");
-          vapi.stop();
-          setStatus(CallStatus.FINISHED);
+          if (message.role === "assistant") setIsAssistantSpeaking(false);
+          if (message.role === "user") setIsUserSpeaking(false);
+
+          if (message.transcript.toLowerCase().includes("interview complete") || 
+              message.transcript.toLowerCase().includes("interview is complete")) {
+            console.log("🎯 Conclusion detected in transcript. Ending call...");
+            vapi.stop();
+            setStatus(CallStatus.FINISHED);
+          }
+        } else if (message.transcriptType === "partial") {
+          setPartialTranscript(message.transcript);
+          if (message.role === "assistant") setIsAssistantSpeaking(true);
+          if (message.role === "user") setIsUserSpeaking(true);
         }
       }
     };
 
     const onSpeechStart = () => {
-      setIsSpeaking(true);
+      console.log("🎙️ Vapi: User started speaking (Mic active)");
+      setIsUserSpeaking(true);
     };
 
     const onSpeechEnd = () => {
-      setIsSpeaking(false);
+      console.log("🙊 Vapi: User stopped speaking");
+      setIsUserSpeaking(false);
+    };
+
+    const onVolumeLevel = (vol: number) => {
+      setVolume(vol);
+      if (vol > 0.02) {
+        if (!hasDetectedVoice) {
+          console.log("🔊 Mic Input detected (First time):", vol.toFixed(2));
+          setHasDetectedVoice(true);
+        }
+        // Occasional log to confirm active stream
+        if (Math.random() > 0.99) console.log("🔊 Audio stream active (Vol):", vol.toFixed(2));
+      }
     };
 
     const onError = (error: any) => {
-      console.error("❌ Vapi Raw Error Object:", error);
       let reason = "Unknown error";
       
       if (typeof error === "string") {
@@ -168,21 +204,37 @@ const Agent = ({ userName, userId, interviewId, feedbackId, type, role, question
         reason = JSON.stringify(error);
       }
 
-      // Vapi triggers an "ejected" error when the session ends gracefully or via timeout.
-      if (reason.includes("Meeting has ended") || reason.includes("ejected")) {
-        console.log("ℹ️ Call concluded or ejected:", reason);
+      // Vapi triggers an "error" event when the session ends gracefully or via WebRTC disconnects.
+      const benignKeywords = [
+        "meeting has ended",
+        "ejected",
+        "ejection",
+        "transport changed to disconnected",
+        "meeting ended in error",
+        "session ended",
+        "call ended",
+        "meeting ended due to ejection",
+        "participant-left",
+        "meeting-ended"
+      ];
+
+      const isBenign = benignKeywords.some(keyword => reason.toLowerCase().includes(keyword));
+
+      if (isBenign) {
+        console.log("ℹ️ [v2.1] Vapi session concluded normally:", reason);
         setStatus(CallStatus.FINISHED);
         return;
       }
 
-      // User Voice Sensitivity fix: if there's a mic error, show it clearly
+      console.error("❌ [v2.1] Vapi Raw Error Object:", JSON.stringify(error, null, 2));
+      console.error("❌ Vapi Error Reason:", reason);
+
       if (reason.toLowerCase().includes("permission") || reason.toLowerCase().includes("microphone")) {
         setErrorMessage("❌ Your browser didn't allow microphone access. Check your address bar lock icon and make sure you are using HTTPS://.");
       } else {
         setErrorMessage(`Connection failed: ${reason}`);
       }
 
-      console.error("❌ Vapi Error Reason:", reason);
       setStatus(CallStatus.INACTIVE);
       setIsRecovering(false);
     };
@@ -191,23 +243,9 @@ const Agent = ({ userName, userId, interviewId, feedbackId, type, role, question
     vapi.on("call-start-success", onCallStartSuccess);
     vapi.on("call-end", onCallEnd);
     vapi.on("message", onMessage);
-    vapi.on("speech-start", () => {
-      console.log("🎙️ Vapi: User started speaking (Mic active)");
-      setIsSpeaking(true);
-    });
-    vapi.on("speech-end", () => {
-      console.log("🙊 Vapi: User stopped speaking");
-      setIsSpeaking(false);
-    });
-
-    // Add a volume monitor to help debug the user's microphone
-    vapi.on("volume-level", (vol: number) => {
-      setVolume(vol);
-      if (vol > 0.05) {
-        // Only log once every 50 calls to avoid spamming
-        if (Math.random() > 0.98) console.log("🔊 Mic Input detected (Volume):", vol.toFixed(2));
-      }
-    });
+    vapi.on("speech-start", onSpeechStart);
+    vapi.on("speech-end", onSpeechEnd);
+    vapi.on("volume-level", onVolumeLevel);
     vapi.on("error", onError);
 
     return () => {
@@ -217,6 +255,7 @@ const Agent = ({ userName, userId, interviewId, feedbackId, type, role, question
       vapi.off("message", onMessage);
       vapi.off("speech-start", onSpeechStart);
       vapi.off("speech-end", onSpeechEnd);
+      vapi.off("volume-level", onVolumeLevel);
       vapi.off("error", onError);
       vapi.stop();
     };
@@ -235,7 +274,13 @@ const Agent = ({ userName, userId, interviewId, feedbackId, type, role, question
         if (proTipMatch) setProTip(proTipMatch[1].trim());
 
         const scoreMatch = lastMsgObj.content.match(/(?:Final Score|Score|Marks|Assessment|Index):\s*(\d+)|(\d+)\s*(?:up to 100|out of 100|marks)/i);
-        if (scoreMatch) setLiveScore(scoreMatch[1] || scoreMatch[2]);
+        if (scoreMatch) {
+          setLiveScore(scoreMatch[1] || scoreMatch[2]);
+        } else {
+          // Robust fallback for words
+          const extracted = extractScoreFromText(lastMsgObj.content);
+          if (extracted > 0) setLiveScore(extracted.toString());
+        }
       }
     }
   }, [messages, status, lastMessage]);
@@ -352,6 +397,21 @@ const Agent = ({ userName, userId, interviewId, feedbackId, type, role, question
       return;
     }
 
+    // 1. Logic Guard: Check Coins for Non-Pro Users
+    if (userId && userId !== "vapi-session" && !isPro) {
+      const balance = walletBalance || 0;
+      if (balance < 50) {
+        toast.error("Insufficient PrepCoins", {
+          description: "You need 50 PrepCoins to start a new interview. Please recharge your wallet.",
+          action: {
+            label: "Recharge",
+            onClick: () => router.push("/pricing")
+          }
+        });
+        return;
+      }
+    }
+
     setStatus(CallStatus.CONNECTING);
 
     try {
@@ -378,54 +438,21 @@ ONLY call 'generateInterview' once ALL 5 details are confirmed. Use userId: "${u
 
 # PHASE 3: WRAP-UP
 When the interview is done:
-1. Provide a "Final Score: [Score]/100".
+1. Provide a "Final Score: [Score]/100" (ALWAYS use numeric digits, never words for the score).
 2. Say EXACTLY: "Interview complete. Your detailed feedback and score are now available on your home dashboard. Checking out now!".
 3. Then gracefully hang up the call.`;
 
-      // 1. Check Browser Mic Permission first
-      try {
-        const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-        console.log("✅ Browser Microphone Access: GRANTED");
-        setMicState('granted');
-        
-        // --- NATIVE VOLUME MONITOR ---
-        const audioContext = new AudioContext();
-        const source = audioContext.createMediaStreamSource(stream);
-        const analyzer = audioContext.createAnalyser();
-        source.connect(analyzer);
-        const bufferLength = analyzer.frequencyBinCount;
-        const dataArray = new Uint8Array(bufferLength);
-
-        const updateNativeVolume = () => {
-          if (status !== CallStatus.ACTIVE && status !== CallStatus.CONNECTING) {
-            stream.getTracks().forEach(t => t.stop());
-            audioContext.close();
-            return;
-          }
-          analyzer.getByteFrequencyData(dataArray);
-          let sum = 0;
-          for (let i = 0; i < bufferLength; i++) sum += dataArray[i];
-          const avg = sum / bufferLength;
-          setNativeVolume(avg / 128); // Normalize 0-1
-          requestAnimationFrame(updateNativeVolume);
-        };
-        updateNativeVolume();
-        // --- END MONITOR ---
-
-      } catch (err) {
-        console.error("❌ Browser Microphone Access: DENIED", err);
-        setMicState('denied');
-        setErrorMessage("Microphone access denied. Please check your browser and system settings.");
-        return;
-      }
+      const publicUrl = process.env.NEXT_PUBLIC_BASE_URL || window.location.origin;
+      console.log("✅ Using Public URL for Vapi tools:", publicUrl);
+      setMicState('granted');
 
       const assistantConfig: any = {
         name: "PrepEdge AI Coach",
         firstMessage: `Hello ${userName}! I'm Alex, your AI Coach for this ${role} interview focused on ${type}. Are you ready to get started?`,
         transcriber: { 
-          provider: "deepgram", 
-          model: "nova-2", 
-          language: "en-US" 
+          provider: "openai", 
+          model: "gpt-4o-mini-transcribe", 
+          language: "en"
         },
         voice: { provider: "11labs", voiceId: "burt" },
         model: {
@@ -468,14 +495,24 @@ When the interview is done:
                 }
               },
               server: {
-                url: `${window.location.origin}/api/vapi/generate`
+                url: `${publicUrl}/api/vapi/generate`
               }
             }
           ]
         },
       };
 
-      await vapi.start(assistantConfig);
+      const assistantId = process.env.NEXT_PUBLIC_VAPI_ASSISTANT_ID;
+
+      if (assistantId) {
+        console.log("🚀 Starting Vapi call with Assistant ID + Local Overrides:", assistantId);
+        // Passing assistantConfig as the second argument overrides the dashboard settings
+        // This ensures the dynamic ngrok URL and system prompt are used.
+        await vapi.start(assistantId, assistantConfig);
+      } else {
+        console.log("🚀 Starting Vapi call with standalone inline assistant config");
+        await vapi.start(assistantConfig);
+      }
     } catch (err: any) {
       console.error("❌ Vapi Start Exception:", err);
       setStatus(CallStatus.INACTIVE);
@@ -571,6 +608,13 @@ When the interview is done:
     <>
       <div className="w-full flex flex-col items-center justify-start pt-8 md:pt-16 gap-6 md:gap-10 p-4 md:p-8 min-h-screen bg-[var(--surface-base)] overflow-x-hidden">
 
+        {/* HTTPS Warning */}
+        {typeof window !== 'undefined' && window.location.protocol !== 'https:' && window.location.hostname !== 'localhost' && (
+          <div className="w-full max-w-2xl bg-amber-500/20 border border-amber-500/50 rounded-xl px-5 py-4 text-amber-200 text-sm text-center mb-4">
+            ⚠️ <b>Microphone Blocked:</b> You are using an insecure (HTTP) link. Browsers only allow microphone access on <b>HTTPS</b>. Please switch to the HTTPS link provided by ngrok.
+          </div>
+        )}
+
         {/* Error Banner */}
         {errorMessage && (
           <div className="w-full max-w-2xl bg-red-500/20 border border-red-500/50 rounded-xl px-4 md:px-5 py-3 md:py-4 text-red-300 text-xs md:text-sm text-center">
@@ -580,14 +624,8 @@ When the interview is done:
 
         <div className="call-view w-full flex flex-col md:flex-row items-center justify-center gap-12 md:gap-20 relative px-4">
           {/* Ambient Arena Glow */}
-          <div className={cn(
-             "absolute top-1/2 left-1/4 -translate-x-1/2 -translate-y-1/2 w-96 h-96 bg-blue-600/15 blur-[120px] rounded-full transition-all duration-1000",
-             isSpeaking ? "opacity-100 scale-125" : "opacity-40"
-          )} />
-          <div className={cn(
-             "absolute top-1/2 right-1/4 translate-x-1/2 -translate-y-1/2 w-96 h-96 bg-purple-600/10 blur-[120px] rounded-full transition-all duration-1000",
-             isSpeaking ? "opacity-100 scale-110" : "opacity-20"
-          )} />
+          <div className="absolute top-1/2 left-1/4 -translate-x-1/2 -translate-y-1/2 w-96 h-96 bg-blue-600/15 blur-[120px] rounded-full transition-all duration-1000 opacity-40" />
+          <div className="absolute top-1/2 right-1/4 translate-x-1/2 -translate-y-1/2 w-96 h-96 bg-purple-600/10 blur-[120px] rounded-full transition-all duration-1000 opacity-20" />
 
           {/* AI Interviewer Card */}
           <div className="arena-card group z-20 max-w-xs md:max-w-sm">
@@ -597,14 +635,8 @@ When the interview is done:
                  alt="AI Interviewer"
                  width={80}
                  height={80}
-                 className={cn(
-                    "object-contain rounded-full transition-transform duration-500",
-                    isSpeaking ? "scale-110 shadow-[0_0_30px_rgba(59,130,246,0.3)]" : "scale-100 shadow-none"
-                 )}
+                 className="object-contain rounded-full shadow-lg border-2 border-[var(--border-subtle)]"
                />
-               {isSpeaking && (
-                 <div className="absolute inset-[-10px] rounded-full border-2 border-blue-400/40 animate-ping" />
-               )}
             </div>
             <h3 className="text-[var(--text-primary)] font-bold text-xl tracking-tight z-10 mt-4 md:mt-6 bg-gradient-to-r from-blue-400 to-blue-600 bg-clip-text text-transparent">AI Coach Alex</h3>
             <div className="mt-2 flex items-center gap-2">
@@ -613,7 +645,7 @@ When the interview is done:
                     status === CallStatus.ACTIVE ? "bg-emerald-500 animate-pulse" : "bg-[var(--text-muted)] opacity-20"
                 )} />
                 <span className="text-[10px] font-black uppercase tracking-[0.2em] text-[var(--text-muted)]">
-                  {status === CallStatus.ACTIVE ? "Online & Listening" : "Initializing Agent"}
+                  {status === CallStatus.ACTIVE ? (isAssistantSpeaking ? "Alex is Speaking..." : "Online & Listening") : "Initializing Agent"}
                 </span>
             </div>
           </div>
@@ -621,38 +653,33 @@ When the interview is done:
           {/* User Card */}
           <div className="arena-card group z-20 max-w-xs md:max-w-sm">
              {/* Local Ambient User Glow */}
-             <div className={cn(
-                "absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-80 h-80 bg-emerald-600/10 blur-[100px] rounded-full transition-all duration-1000",
-                isSpeaking ? "opacity-100 scale-125" : "opacity-0"
-             )} />
+             <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-80 h-80 bg-emerald-600/10 blur-[100px] rounded-full transition-all duration-1000 opacity-0" />
              
              <div className="avatar">
                 <Image
-                  src={userPhotoUrl || "/user-avatar.webp"}
-                  alt="User Avatar"
-                  width={100}
-                  height={100}
-                  priority
-                  className={cn(
-                    "rounded-full object-cover border-4 border-[var(--border-primary)] transition-transform duration-500",
-                    isSpeaking ? "scale-110 shadow-[0_0_30px_rgba(16,185,129,0.2)]" : "scale-100 shadow-none"
-                  )}
-                  unoptimized={userPhotoUrl?.startsWith('data:')}
-                />
-                {isSpeaking && (
-                  <div className="absolute inset-[-10px] rounded-full border-2 border-emerald-400/40 animate-ping" />
+                   src={userPhotoUrl || "/user-avatar.webp"}
+                   alt="User Avatar"
+                   width={100}
+                   height={100}
+                   priority
+                   className="rounded-full object-cover border-4 border-[var(--border-primary)] shadow-lg"
+                   unoptimized={userPhotoUrl?.startsWith('data:')}
+                 />
+                
+                {isUserSpeaking && (
+                  <div className="absolute inset-[-10px] rounded-full border-2 border-emerald-400/40 opacity-20" />
                 )}
              </div>
              
               <h3 className="text-[var(--text-primary)] font-bold text-lg md:text-xl capitalize leading-tight mt-4 md:mt-6 z-10">{userName}</h3>
              <div className="mt-4 flex items-center justify-center gap-2 z-10">
-                 <span className={cn(
-                     "w-2 h-2 rounded-full",
-                     status === CallStatus.ACTIVE ? "bg-emerald-400 animate-pulse" : "bg-[var(--text-muted)] opacity-20"
-                 )} />
-                 <span className="text-[10px] font-black uppercase tracking-[0.2em] text-[var(--text-muted)]">
-                   {status === CallStatus.ACTIVE ? "Mic Active" : "Waiting for Call"}
-                 </span>
+                  <span className={cn(
+                      "w-2 h-2 rounded-full",
+                      isUserSpeaking ? "bg-emerald-400 animate-pulse" : "bg-[var(--text-muted)] opacity-20"
+                  )} />
+                  <span className="text-[10px] font-black uppercase tracking-[0.2em] text-[var(--text-muted)]">
+                    {isUserSpeaking ? "Voice Detected" : (status === CallStatus.ACTIVE ? `Listening... ${Math.round(volume * 100)}%` : "Waiting for Call")}
+                  </span>
              </div>
           </div>
         </div>
@@ -672,17 +699,16 @@ When the interview is done:
         </div>
 
         {/* Transcript */}
-        {messages.length > 0 && lastMessage && (
+        {(messages.length > 0 || partialTranscript) && (
           <div className="transcript-border mt-4 w-full flex justify-center">
-            <div className="transcript">
+            <div className="transcript min-h-[4rem] flex items-center justify-center">
               <p
-                key={lastMessage}
                 className={cn(
-                  "text-[var(--text-primary)] text-center text-lg transition-all duration-500",
-                  "animate-in fade-in slide-in-from-bottom-2"
+                  "text-[var(--text-primary)] text-center text-lg transition-all duration-300",
+                  partialTranscript ? "opacity-60 scale-95" : "opacity-100 scale-100"
                 )}
               >
-                {lastMessage}
+                {partialTranscript || lastMessage}
               </p>
             </div>
           </div>

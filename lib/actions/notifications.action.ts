@@ -10,6 +10,11 @@ export type NotificationType =
   | "interview_completed"
   | "missed_interview"
   | "streak_milestone"
+  | "recharge"
+  | "subscription"
+  | "usage"
+  | "reward"
+  | "streak"
   | "system";
 
 export interface Notification {

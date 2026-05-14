@@ -11,17 +11,21 @@ import {
 import { getCurrentUser } from "@/lib/actions/auth.action";
 import DisplayTechIcons from "@/components/DisplayTechIcons";
 
+interface RouteParams {
+  params: Promise<{ id: string }>;
+}
+
 const InterviewDetails = async ({ params }: RouteParams) => {
   const { id } = await params;
 
   const user = await getCurrentUser();
 
-  const interview = await getInterviewById(id);
+  const interview = (await getInterviewById(id)) as any; // Temporary cast to resolve unknown issues
   if (!interview) redirect("/");
 
   const feedback = await getFeedbackByInterviewId({
     interviewId: id,
-    userId: user?.id!,
+    userId: user?.id || "",
   });
 
   const techIcons = await getTechLogos(interview.techstack);
@@ -50,12 +54,14 @@ const InterviewDetails = async ({ params }: RouteParams) => {
       </div>
 
       <Agent
-        userName={user?.name!}
+        userName={user?.name || "Candidate"}
         userId={user?.id}
         interviewId={id}
         type="interview"
         questions={interview.questions}
         feedbackId={feedback?.id}
+        walletBalance={user?.walletBalance}
+        isPro={user?.isPro}
       />
     </>
   );

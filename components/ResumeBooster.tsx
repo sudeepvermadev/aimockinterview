@@ -18,7 +18,7 @@ const ResumeBooster = ({ userId }: { userId: string }) => {
         const toastId = toast.loading("AI is synthesizing your career achievements...");
         
         try {
-            const result = await generateResumeAchievements(userId);
+            const result = await generateResumeAchievements();
             if (result && result.success && result.achievements) {
                 setAchievements(result.achievements);
                 toast.success("Resume achievements generated!", { id: toastId });

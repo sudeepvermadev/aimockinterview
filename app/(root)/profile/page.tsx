@@ -13,16 +13,20 @@ import { BADGES } from "@/constants/achievements";
 import BadgeCard from "@/components/BadgeCard";
 import ProfileAvatar from "@/components/ProfileAvatar";
 import ShareProfile from "@/components/ShareProfile";
+import WalletCard from "@/components/WalletCard";
+import { Wallet } from "lucide-react";
 
 export default async function ProfilePage() {
   const user = await getCurrentUser();
   if (!user) redirect("/sign-in");
 
   // Fetch real data
-  const interviews = await getInterviewsByUserId(user.id) || [];
-  const totalInterviews = interviews.length;
-  const completedInterviews = interviews.filter((i: any) => i.finalized).length;
   const analytics = await getUserAnalytics(user.id);
+  const interviews = await getInterviewsByUserId(user.id) || [];
+  
+  // Use analytics as the source of truth for counts to match dashboard
+  const totalInterviews = analytics?.totalInterviews || interviews.length;
+  const completedInterviews = analytics?.completedInterviews || interviews.filter((i: any) => i.finalized).length;
 
   const userInitial = (user as any).name?.charAt(0).toUpperCase()
     || (user as any).email?.charAt(0).toUpperCase()
@@ -77,6 +81,14 @@ export default async function ProfilePage() {
               badgeCount: (user as any).badges?.length || 0
             }}
           />
+          {user.email === "sudeepverma2006@gmail.com" && (
+            <Link 
+              href="/admin/transactions" 
+              className="flex items-center gap-2 px-4 py-1.5 bg-purple-600/10 border border-purple-500/20 text-purple-400 rounded-full font-black text-[10px] uppercase tracking-wider hover:bg-purple-600/20 transition-all"
+            >
+              <Shield className="w-3 h-3" /> Admin Dashboard
+            </Link>
+          )}
           <div className="px-4 py-1.5 rounded-full bg-blue-500/10 border border-blue-500/20 text-blue-600 dark:text-blue-400 text-xs font-bold uppercase tracking-wider">
             Profile
           </div>
@@ -141,6 +153,17 @@ export default async function ProfilePage() {
               <span className="text-xs text-[var(--text-secondary)] font-medium uppercase tracking-wide">{label}</span>
             </div>
           ))}
+        </div>
+
+        {/* ── Wallet & Subscription ────────────────────────── */}
+        <div className="space-y-6">
+           <div className="flex items-center gap-4 ml-2">
+              <div className="p-2 bg-blue-500/10 rounded-xl">
+                 <Wallet className="w-5 h-5 text-blue-400" />
+              </div>
+              <h2 className="text-xl font-black text-[var(--text-primary)] uppercase tracking-tight">Wallet & Subscription</h2>
+           </div>
+           <WalletCard user={{ ...user, id: user.id }} />
         </div>
 
         {/* ── Info Grid ───────────────────────────────────── */}
