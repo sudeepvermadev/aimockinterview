@@ -54,14 +54,19 @@ export const getRandomInterviewCover = () => {
 export const extractScoreFromText = (text: string): number => {
   if (!text) return 0;
 
-  const lowerText = text.toLowerCase().replace(/[.,\/#!$%\^&\*;:{}=\-_`~()]/g, " ").replace(/-/g, " ");
+  // Clean text but keep numbers and common score delimiters (/ and -) for the regex
+  const lowerText = text.toLowerCase();
 
-  // 1. Primary: Match digits (e.g., "85/100" or "Score: 90")
-  const digitMatch = lowerText.match(/(?:final score|score|marks|assessment|index|performance)\s*[,:]?\s*(\d+)/i);
+  // 1. Primary: Match digits (e.g., "85/100", "70-100", or "Score: 90")
+  // We look for the first number after an indicator, specifically handling the /100 or -100 suffix
+  const digitMatch = lowerText.match(/(?:final score|score|marks|assessment|index|performance)\s*[,:]?\s*(\d+)(?:\s*[-\/]\s*\d+)?/i);
   if (digitMatch) {
     const score = parseInt(digitMatch[1]);
     return isNaN(score) ? 0 : score;
   }
+
+  // Secondary cleaning for word-based extraction
+  const cleanedText = lowerText.replace(/[.,\/#!$%\^&\*;:{}=\-_`~()]/g, " ").replace(/-/g, " ");
 
   // 2. Map for number words
   const wordMap: { [key: string]: number } = {
@@ -70,7 +75,7 @@ export const extractScoreFromText = (text: string): number => {
     twenty: 20, thirty: 30, forty: 40, fifty: 50, sixty: 60, seventy: 70, eighty: 80, ninety: 90
   };
 
-  const words = lowerText.split(/\s+/);
+  const words = cleanedText.split(/\s+/);
   const indicators = ["score", "marks", "assessment", "index", "performance", "final"];
 
   let scoreIndex = -1;

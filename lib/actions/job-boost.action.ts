@@ -22,7 +22,7 @@ export async function generateJobSpecificQuestions(jdText: string) {
 
   try {
     const { object } = await generateObject({
-      model: google("gemini-1.5-flash"),
+      model: google("gemini-2.5-flash"),
       schema: jobBoostSchema,
       prompt: `
         Analyze the following Job Description (JD) and extract the most relevant information to prepare a candidate for a mock interview.

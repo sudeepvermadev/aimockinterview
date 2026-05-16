@@ -402,7 +402,7 @@ export default function FeedbackPage() {
                     );
                 })}
 
-                {comparisons.length === 0 && transcript.length > 0 && (
+                {transcript.length > 0 && (
                     <div className="bg-[var(--surface-card)]/40 rounded-[3.5rem] border border-[var(--border-primary)] p-10 shadow-2xl">
                         <h3 className="text-[10px] font-black text-[var(--text-muted)] uppercase tracking-[0.5em] mb-10">Captured Interview Transcript</h3>
                         <div className="space-y-6 max-h-[600px] overflow-y-auto pr-6 custom-scrollbar">

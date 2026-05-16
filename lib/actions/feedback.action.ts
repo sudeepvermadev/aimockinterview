@@ -13,7 +13,7 @@ export const saveDetailedFeedback = async (interviewId: string, userId: string, 
     let analysis;
     if (genAI && transcript && transcript.length > 0) {
       const model = genAI.getGenerativeModel({
-        model: "gemini-1.5-pro",
+        model: "gemini-2.5-flash",
         // @ts-ignore
         generationConfig: {
           responseMimeType: "application/json",

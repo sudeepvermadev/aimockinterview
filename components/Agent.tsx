@@ -59,6 +59,22 @@ const Agent = ({ userName, userId, interviewId, feedbackId, type, role, question
   const [useFallback, setUseFallback] = useState(false);
   const [micState, setMicState] = useState<'pending' | 'granted' | 'denied'>('pending');
   const [hasDetectedVoice, setHasDetectedVoice] = useState(false);
+  
+  // Suppression: Intercept benign Vapi console errors
+  useEffect(() => {
+    const originalError = console.error;
+    console.error = (...args) => {
+      const msg = args.join(" ").toLowerCase();
+      if (msg.includes("meeting ended in error") || msg.includes("meeting has ended")) {
+        console.log("ℹ️ [Suppressed] Vapi Internal Message:", args[0]);
+        return;
+      }
+      originalError.apply(console, args);
+    };
+    return () => {
+      console.error = originalError;
+    };
+  }, []);
 
   // Local Persistence: Save session
   useEffect(() => {
@@ -207,22 +223,25 @@ const Agent = ({ userName, userId, interviewId, feedbackId, type, role, question
       // Vapi triggers an "error" event when the session ends gracefully or via WebRTC disconnects.
       const benignKeywords = [
         "meeting has ended",
-        "ejected",
-        "ejection",
-        "transport changed to disconnected",
         "meeting ended in error",
+        "meeting-ended",
         "session ended",
         "call ended",
-        "meeting ended due to ejection",
         "participant-left",
-        "meeting-ended"
+        "disconnected",
+        "transport changed",
+        "ejected",
+        "ejection"
       ];
 
       const isBenign = benignKeywords.some(keyword => reason.toLowerCase().includes(keyword));
 
       if (isBenign) {
-        console.log("ℹ️ [v2.1] Vapi session concluded normally:", reason);
-        setStatus(CallStatus.FINISHED);
+        console.log("ℹ️ [Suppressed] Vapi session concluded normally:", reason);
+        // Only set status to finished if we are still active or connecting
+        if (status === CallStatus.ACTIVE || status === CallStatus.CONNECTING) {
+          setStatus(CallStatus.FINISHED);
+        }
         return;
       }
 
@@ -257,7 +276,13 @@ const Agent = ({ userName, userId, interviewId, feedbackId, type, role, question
       vapi.off("speech-end", onSpeechEnd);
       vapi.off("volume-level", onVolumeLevel);
       vapi.off("error", onError);
-      vapi.stop();
+      
+      // Only stop if we are in an active-like state to avoid "Meeting already ended" errors
+      try {
+        vapi.stop();
+      } catch (e) {
+        // Silently fail on cleanup stop
+      }
     };
   }, [questions]); // Re-bind if questions change
 
@@ -273,11 +298,12 @@ const Agent = ({ userName, userId, interviewId, feedbackId, type, role, question
         const proTipMatch = lastMsgObj.content.match(/Pro Tip:\s*([^\.]+[\.]?)/i);
         if (proTipMatch) setProTip(proTipMatch[1].trim());
 
-        const scoreMatch = lastMsgObj.content.match(/(?:Final Score|Score|Marks|Assessment|Index):\s*(\d+)|(\d+)\s*(?:up to 100|out of 100|marks)/i);
+        // Improved regex to handle "70/100", "70-100", or "Score: 70"
+        const scoreMatch = lastMsgObj.content.match(/(?:Final Score|Score|Marks|Assessment|Index):\s*(\d+)(?:\s*[-\/]\s*\d+)?/i);
         if (scoreMatch) {
-          setLiveScore(scoreMatch[1] || scoreMatch[2]);
+          setLiveScore(scoreMatch[1]);
         } else {
-          // Robust fallback for words
+          // Robust fallback for words or other patterns
           const extracted = extractScoreFromText(lastMsgObj.content);
           if (extracted > 0) setLiveScore(extracted.toString());
         }
@@ -438,7 +464,7 @@ ONLY call 'generateInterview' once ALL 5 details are confirmed. Use userId: "${u
 
 # PHASE 3: WRAP-UP
 When the interview is done:
-1. Provide a "Final Score: [Score]/100" (ALWAYS use numeric digits, never words for the score).
+1. Provide a "Final Score: [Score]/100" (e.g. "Final Score: 85/100"). ALWAYS use numeric digits. DO NOT provide a range (like 70-100), just give a single definite score.
 2. Say EXACTLY: "Interview complete. Your detailed feedback and score are now available on your home dashboard. Checking out now!".
 3. Then gracefully hang up the call.`;
 
@@ -608,12 +634,6 @@ When the interview is done:
     <>
       <div className="w-full flex flex-col items-center justify-start pt-8 md:pt-16 gap-6 md:gap-10 p-4 md:p-8 min-h-screen bg-[var(--surface-base)] overflow-x-hidden">
 
-        {/* HTTPS Warning */}
-        {typeof window !== 'undefined' && window.location.protocol !== 'https:' && window.location.hostname !== 'localhost' && (
-          <div className="w-full max-w-2xl bg-amber-500/20 border border-amber-500/50 rounded-xl px-5 py-4 text-amber-200 text-sm text-center mb-4">
-            ⚠️ <b>Microphone Blocked:</b> You are using an insecure (HTTP) link. Browsers only allow microphone access on <b>HTTPS</b>. Please switch to the HTTPS link provided by ngrok.
-          </div>
-        )}
 
         {/* Error Banner */}
         {errorMessage && (
@@ -678,7 +698,7 @@ When the interview is done:
                       isUserSpeaking ? "bg-emerald-400 animate-pulse" : "bg-[var(--text-muted)] opacity-20"
                   )} />
                   <span className="text-[10px] font-black uppercase tracking-[0.2em] text-[var(--text-muted)]">
-                    {isUserSpeaking ? "Voice Detected" : (status === CallStatus.ACTIVE ? `Listening... ${Math.round(volume * 100)}%` : "Waiting for Call")}
+                    {isUserSpeaking ? "Voice Detected" : (status === CallStatus.ACTIVE ? "Online & Listening" : "Waiting for Call")}
                   </span>
              </div>
           </div>
@@ -689,11 +709,6 @@ When the interview is done:
           {proTip && (
             <div className="bg-blue-500/10 border border-blue-500/30 rounded-xl px-4 md:px-5 py-2.5 md:py-3 text-blue-600 dark:text-blue-300 text-xs md:text-sm animate-in fade-in slide-in-from-top-2">
               <span className="font-bold text-blue-600 dark:text-blue-400">💡 Pro Tip:</span> {proTip}
-            </div>
-          )}
-          {liveScore && (
-            <div className="bg-emerald-500/10 border border-emerald-500/30 rounded-xl px-4 md:px-5 py-2.5 md:py-3 text-emerald-600 dark:text-emerald-300 text-xs md:text-sm text-center font-bold animate-in zoom-in-95">
-              🎯 Current Performance Estimate: <span className="text-lg md:text-xl text-emerald-600 dark:text-emerald-400">{liveScore}/100</span>
             </div>
           )}
         </div>

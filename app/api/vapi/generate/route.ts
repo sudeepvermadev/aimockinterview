@@ -47,9 +47,9 @@ export async function POST(request: Request) {
     let finalQuestions: string[] = [];
 
     try {
-      console.log("Calling Gemini with model gemini-2.0-flash-001...");
+      console.log("Calling Gemini with model gemini-2.5-flash...");
       const { text: questions } = await generateText({
-        model: google("gemini-2.0-flash-001"),
+        model: google("gemini-2.5-flash"),
 
 
         prompt: `Act as an expert interviewer for exactly ${role}.

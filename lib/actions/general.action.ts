@@ -39,7 +39,7 @@ export async function createFeedback(params: { interviewId: string; userId: stri
 
     try {
       const model = googleGenAI.getGenerativeModel({
-        model: "gemini-1.5-pro",
+        model: "gemini-2.5-flash",
         generationConfig: {
           responseMimeType: "application/json",
         }
