@@ -23,6 +23,7 @@ Built with **Next.js 15**, **Firebase**, and **Google Gemini AI**, PrepEdge deli
 <details>
   <summary><b>🌐 Full Platform Walkthrough (Features & Analytics)</b></summary>
   <br/>
+
   <!-- DRAG AND DROP FULL WALKTHROUGH VIDEO HERE -->
   <p><i>A complete tour of PrepEdge, covering authentication, dashboard analytics, coin management, and the feedback system.</i></p>
 </details>
@@ -32,6 +33,9 @@ Built with **Next.js 15**, **Firebase**, and **Google Gemini AI**, PrepEdge deli
 <details>
   <summary><b>🤖 AI Interview Experience (Live Session)</b></summary>
   <br/>
+  
+
+
   <!-- DRAG AND DROP INTERVIEW EXPERIENCE VIDEO HERE -->
   <p><i>A deep dive into the real-time AI voice interaction, showing the low-latency conversation with AI Coach Alex.</i></p>
 </details>
