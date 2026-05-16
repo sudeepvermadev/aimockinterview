@@ -20,7 +20,7 @@ Built with **Next.js 15**, **Firebase**, and **Google Gemini AI**, PrepEdge deli
 
 ## 📺 Demo Videos
 
-<details>
+<details open>
   <summary><b>🌐 Full Platform Walkthrough (Features & Analytics)</b></summary>
   <br/>
   <a href="https://drive.google.com/file/d/1u3PeOtdt820JWpEIywgZr5h2KpBsM9WC/view?usp=drive_link" target="_blank">
@@ -31,7 +31,7 @@ Built with **Next.js 15**, **Firebase**, and **Google Gemini AI**, PrepEdge deli
 
 <br/>
 
-<details>
+<details open>
   <summary><b>🤖 AI Interview Experience (Live Session)</b></summary>
   <br/>
   <a href="https://drive.google.com/file/d/1MrG4uBELyn83R_efhc6RO5kFAFgMZd4V/view?usp=drive_link" target="_blank">
