@@ -42,7 +42,6 @@ Built with **Next.js 15**, **Firebase**, and **Google Gemini AI**, PrepEdge deli
 
 ---
 
----
 
 ## ✨ Key Features
 
