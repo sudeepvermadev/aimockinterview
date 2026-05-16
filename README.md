@@ -18,6 +18,15 @@ Built with **Next.js 15**, **Firebase**, and **Google Gemini AI**, PrepEdge deli
 
 ---
 
+## 📺 Video Demo
+
+<!-- DRAG AND DROP YOUR VIDEO HERE -->
+> **Note**: For the best experience, we recommend uploading an `.mp4` file here. Simply edit this file and drag your video into this section!
+
+---
+
+---
+
 ## ✨ Key Features
 
 ### 🤖 AI-Powered Mock Interviews
@@ -132,6 +141,24 @@ my-app/
 ├── public/               # Static assets (logos, images)
 └── types/                # TypeScript type definitions
 ```
+
+---
+
+## 🧠 Technical Deep Dive
+
+### 1. Dual-AI Architecture
+PrepEdge leverages two distinct AI systems to provide a seamless experience:
+*   **Vapi.ai (Voice Engine)**: Manages the WebRTC connection, handle-offs, and speech-to-text/text-to-speech. This ensures sub-second latency for a natural conversation.
+*   **Google Gemini (Analysis Engine)**: Processes the finalized transcript to perform "Technical Benchmarking"—comparing user answers against industry-standard "Ideal Answers."
+
+### 2. Intelligent Score Extraction
+One of the core challenges was parsing numeric scores from conversational AI output. We implemented a **multi-stage regex parser** in `lib/utils.ts` that:
+1.  Identifies score patterns (e.g., `85/100`, `Score: 90`).
+2.  Handles edge cases like ranges (`70-100`) by prioritizing the numerator.
+3.  Falls back to natural language processing for word-based scores (e.g., "Eighty-Five").
+
+### 3. Real-time Synchronization
+The system uses **Firebase Firestore** for real-time state management, allowing the "Live Pro Tips" and "Voice Indicators" to react instantly as the AI processes the candidate's speech.
 
 ---
 
