@@ -23,10 +23,9 @@ Built with **Next.js 15**, **Firebase**, and **Google Gemini AI**, PrepEdge deli
 <details>
   <summary><b>🌐 Full Platform Walkthrough (Features & Analytics)</b></summary>
   <br/>
-
-
-
-  <!-- DRAG AND DROP FULL WALKTHROUGH VIDEO HERE -->
+  <a href="https://drive.google.com/file/d/1u3PeOtdt820JWpEIywgZr5h2KpBsM9WC/view?usp=drive_link" target="_blank">
+    <img src="https://img.shields.io/badge/Watch%20Video-Full%20Walkthrough-red?style=for-the-badge&logo=googledrive" alt="Watch Full Walkthrough" />
+  </a>
   <p><i>A complete tour of PrepEdge, covering authentication, dashboard analytics, coin management, and the feedback system.</i></p>
 </details>
 
@@ -35,8 +34,9 @@ Built with **Next.js 15**, **Firebase**, and **Google Gemini AI**, PrepEdge deli
 <details>
   <summary><b>🤖 AI Interview Experience (Live Session)</b></summary>
   <br/>
-
-  <!-- DRAG AND DROP INTERVIEW EXPERIENCE VIDEO HERE -->
+  <a href="https://drive.google.com/file/d/1MrG4uBELyn83R_efhc6RO5kFAFgMZd4V/view?usp=drive_link" target="_blank">
+    <img src="https://img.shields.io/badge/Watch%20Video-Interview%20Session-blue?style=for-the-badge&logo=googledrive" alt="Watch Interview Session" />
+  </a>
   <p><i>A deep dive into the real-time AI voice interaction, showing the low-latency conversation with AI Coach Alex.</i></p>
 </details>
 
